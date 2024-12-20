@@ -84,6 +84,14 @@ export function Altair() {
 }
 ```
 
+## Usage
+
+Add your Gemini API key to `.env` then:
+
+```
+$ npm install && npm start
+```
+
 ## development
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
