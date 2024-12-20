@@ -6,13 +6,21 @@ This repository contains a react-based starter app for using the [Multimodal Liv
 
 Watch the demo of the Multimodal Live API [here](https://www.youtube.com/watch?v=J_q7JY1XxFE).
 
----
+## Usage
 
-To get started, [create a free Gemini API key](https://aistudio.google.com/apikey). We have provided several example applications on other branches of this repository:
+To get started, [create a free Gemini API key](https://aistudio.google.com/apikey) and add it to the `.env` file. Then:
+
+```
+$ npm install && npm start
+```
+
+We have provided several example applications on other branches of this repository:
 
 - [demos/GenExplainer](https://github.com/google-gemini/multimodal-live-api-web-console/tree/demos/genexplainer)
 - [demos/GenWeather](https://github.com/google-gemini/multimodal-live-api-web-console/tree/demos/genweather)
 - [demos/GenList](https://github.com/google-gemini/multimodal-live-api-web-console/tree/demos/genlist)
+
+## Example
 
 Below is an example of an entire application that will use Google Search grounding and then render graphs using [vega-embed](https://github.com/vega/vega-embed):
 
@@ -69,7 +77,7 @@ export function Altair() {
     };
     client.on("toolcall", onToolCall);
     return () => {
-        client.off("toolcall", onToolCall);
+      client.off("toolcall", onToolCall);
     };
   }, [client]);
 
@@ -82,14 +90,6 @@ export function Altair() {
   }, [embedRef, jsonString]);
   return <div className="vega-embed" ref={embedRef} />;
 }
-```
-
-## Usage
-
-Add your Gemini API key to `.env` then:
-
-```
-$ npm install && npm start
 ```
 
 ## development
