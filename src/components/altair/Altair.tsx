@@ -80,7 +80,7 @@ function AltairComponent() {
           () =>
             client.sendToolResponse({
               functionResponses: toolCall.functionCalls.map((fc) => ({
-                response: { output: { sucess: true } },
+                response: { output: { success: true } },
                 id: fc.id,
               })),
             }),
