@@ -1,36 +1,7 @@
 .side-panel {
-  .react-select {
-    background: var(--Neutral-20);
-    color: var(--Neutral-90);
-    width: 193px;
-    height: 30px;
-
-    .react-select__single-value {
-      color: var(--Neutral-90);
-    }
-
-    .react-select__menu {
-      background: var(--Neutral-20);
-      color: var(--Neutral-90);
-    }
-
-    .react-select__option {
-    }
-    .react-select__value-container {
-    }
-    .react-select__indicators {
-    }
-    .react-select__option:hover,
-    .react-select__option:focus,
-    .react-select_option:focus-within {
-      background: var(--Neutral-30);
-    }
-    .react-select__option--is-focused: {
-      background: var(--Neutral-30);
-    }
-  }
   background: var(--Neutral-00);
-  width: 40px; /* when closed */
+  width: 40px;
+  /* when closed */
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -42,7 +13,8 @@
   font-size: 13px;
   font-style: normal;
   font-weight: 400;
-  line-height: 160%; /* 20.8px */
+  line-height: 160%;
+  /* 20.8px */
 
   .hidden {
     display: none !important;
@@ -73,7 +45,8 @@
       font-size: 21px;
       font-style: normal;
       font-weight: 500;
-      line-height: 16px; /* 100% */
+      line-height: 16px;
+      /* 100% */
 
       opacity: 0;
       display: none;
@@ -125,6 +98,7 @@
     padding: 24px 25px;
     justify-content: flex-end;
     gap: 21px;
+
     .streaming-indicator {
       user-select: none;
       border-radius: 4px;
@@ -232,6 +206,7 @@
     }
   }
 }
+
 .side-panel.open {
   width: 400px;
   height: 100vh;
@@ -258,6 +233,7 @@
   align-items: center;
   transition: all 0.2s ease-in;
 }
+
 .top button {
   background: transparent;
   border: 0;

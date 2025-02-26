@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import "./react-select.scss";
 import cn from "classnames";
 import { useEffect, useRef, useState } from "react";
 import { RiSidebarFoldLine, RiSidebarUnfoldLine } from "react-icons/ri";

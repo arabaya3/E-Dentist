@@ -43,6 +43,7 @@
   --Green-500: #0d9c53;
   --Green-700: #025022;
 
+  --Blue-400: #80c1ff;
   --Blue-500: #1f94ff;
   --Blue-800: #0f3557;
 
@@ -111,10 +112,11 @@ body {
   flex-direction: column;
 }
 
-@media (prefers-reduced-motion: no-preference) {}
+@media (prefers-reduced-motion: no-preference) {
+}
 
 .streaming-console {
-  background: var(--Neutral-5);
+  background: var(--Neutral-15);
   color: var(--gray-300);
   display: flex;
   height: 100vh;
@@ -129,7 +131,7 @@ body {
   .disabled {
     pointer-events: none;
 
-    >* {
+    > * {
       pointer-events: none;
     }
   }
