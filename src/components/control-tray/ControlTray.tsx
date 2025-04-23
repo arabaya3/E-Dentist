@@ -24,12 +24,14 @@ import { useWebcam } from "../../hooks/use-webcam";
 import { AudioRecorder } from "../../lib/audio-recorder";
 import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
+import SettingsDialog from "../settings-dialog/SettingsDialog";
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
   children?: ReactNode;
   supportsVideo: boolean;
   onVideoStreamChange?: (stream: MediaStream | null) => void;
+  hideSettings?: boolean;
 };
 
 type MediaStreamButtonProps = {
@@ -61,6 +63,7 @@ function ControlTray({
   children,
   onVideoStreamChange = () => {},
   supportsVideo,
+  hideSettings,
 }: ControlTrayProps) {
   const videoStreams = [useWebcam(), useScreenCapture()];
   const [activeVideoStream, setActiveVideoStream] =
@@ -210,6 +213,7 @@ function ControlTray({
         </div>
         <span className="text-indicator">Streaming</span>
       </div>
+      {hideSettings ? "" : <SettingsDialog />}
     </section>
   );
 }
