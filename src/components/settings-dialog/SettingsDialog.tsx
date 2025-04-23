@@ -22,7 +22,7 @@ const getFunctionDeclarations = (config: LiveConfig): FunctionDeclaration[] => {
   }
   return (config.tools as Tool[])
     .filter((t: Tool): t is FunctionDeclarationsTool =>
-      Array.isArray((t as any).functionDeclarations),
+      Array.isArray((t as any).functionDeclarations)
     )
     .map((t) => t.functionDeclarations)
     .filter((fc) => !!fc)
@@ -31,7 +31,7 @@ const getFunctionDeclarations = (config: LiveConfig): FunctionDeclaration[] => {
 
 export default function SettingsDialog() {
   const [open, setOpen] = useState(false);
-  const { config, setConfig } = useLiveAPIContext();
+  const { config, setConfig, connected } = useLiveAPIContext();
   const functionDeclarations: FunctionDeclaration[] =
     getFunctionDeclarations(config);
 
@@ -51,7 +51,7 @@ export default function SettingsDialog() {
       };
       setConfig(newConfig);
     },
-    [config, setConfig],
+    [config, setConfig]
   );
 
   const updateFunctionDescription = useCallback(
@@ -62,13 +62,13 @@ export default function SettingsDialog() {
           ...tool,
           functionDeclarations: getFunctionDeclarations(config).map(
             (fd, index) =>
-              index === fdKey ? { ...fd, description: newDescription } : fd,
+              index === fdKey ? { ...fd, description: newDescription } : fd
           ),
         })),
       };
       setConfig(newConfig);
     },
-    [config, setConfig],
+    [config, setConfig]
   );
 
   return (
@@ -80,11 +80,15 @@ export default function SettingsDialog() {
         settings
       </button>
       <dialog className="dialog" style={{ display: open ? "block" : "none" }}>
-        <div className="dialog-container">
-          {/*<p className="small">
-            These settings can only be applied before connecting. Settings here
-            will override other settings.
-          </p>*/}
+        <div className={`dialog-container ${connected ? "disabled" : ""}`}>
+          {connected && (
+            <div className="connected-indicator">
+              <p>
+                These settings can only be applied before connecting and will
+                override other settings.
+              </p>
+            </div>
+          )}
           <div className="mode-selectors">
             <ResponseModalitySelector />
             <VoiceSelector />
@@ -106,7 +110,7 @@ export default function SettingsDialog() {
                     {Object.keys(fd.parameters?.properties || {}).map(
                       (item, k) => (
                         <span key={k}>{item}</span>
-                      ),
+                      )
                     )}
                   </span>
                   <input
