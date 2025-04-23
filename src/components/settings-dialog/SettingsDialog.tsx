@@ -16,24 +16,21 @@ import {
 import VoiceSelector from "./VoiceSelector";
 import ResponseModalitySelector from "./ResponseModalitySelector";
 
-const getFunctionDeclarations = (config: LiveConfig): FunctionDeclaration[] => {
-  if (!Array.isArray(config.tools)) {
-    return [];
-  }
-  return (config.tools as Tool[])
-    .filter((t: Tool): t is FunctionDeclarationsTool =>
-      Array.isArray((t as any).functionDeclarations)
-    )
-    .map((t) => t.functionDeclarations)
-    .filter((fc) => !!fc)
-    .flat();
-};
-
 export default function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const { config, setConfig, connected } = useLiveAPIContext();
-  const functionDeclarations: FunctionDeclaration[] =
-    getFunctionDeclarations(config);
+  const functionDeclarations: FunctionDeclaration[] = useMemo(() => {
+    if (!Array.isArray(config.tools)) {
+      return [];
+    }
+    return (config.tools as Tool[])
+      .filter((t: Tool): t is FunctionDeclarationsTool =>
+        Array.isArray((t as any).functionDeclarations)
+      )
+      .map((t) => t.functionDeclarations)
+      .filter((fc) => !!fc)
+      .flat();
+  }, [config]);
 
   const systemInstruction = useMemo(() => {
     const s = config.systemInstruction?.parts.find((p) => p.text)?.text || "";
@@ -55,16 +52,24 @@ export default function SettingsDialog() {
   );
 
   const updateFunctionDescription = useCallback(
-    (fdKey: number, newDescription: string) => {
+    (editedFdName: string, newDescription: string) => {
       const newConfig: LiveConfig = {
         ...config,
-        tools: config.tools?.map((tool) => ({
-          ...tool,
-          functionDeclarations: getFunctionDeclarations(config).map(
-            (fd, index) =>
-              index === fdKey ? { ...fd, description: newDescription } : fd
-          ),
-        })),
+        tools:
+          config.tools?.map((tool) => {
+            const fdTool = tool as FunctionDeclarationsTool;
+            if (!Array.isArray(fdTool.functionDeclarations)) {
+              return tool;
+            }
+            return {
+              ...tool,
+              functionDeclarations: fdTool.functionDeclarations.map((fd) =>
+                fd.name === editedFdName
+                  ? { ...fd, description: newDescription }
+                  : fd
+              ),
+            };
+          }) || [],
       };
       setConfig(newConfig);
     },
@@ -119,7 +124,7 @@ export default function SettingsDialog() {
                     type="text"
                     defaultValue={fd.description}
                     onBlur={(e) =>
-                      updateFunctionDescription(fdKey, e.target.value)
+                      updateFunctionDescription(fd.name, e.target.value)
                     }
                   />
                 </div>
