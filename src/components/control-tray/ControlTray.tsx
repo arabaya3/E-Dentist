@@ -31,7 +31,7 @@ export type ControlTrayProps = {
   children?: ReactNode;
   supportsVideo: boolean;
   onVideoStreamChange?: (stream: MediaStream | null) => void;
-  hideSettings?: boolean;
+  enableEditingSettings?: boolean;
 };
 
 type MediaStreamButtonProps = {
@@ -55,7 +55,7 @@ const MediaStreamButton = memo(
       <button className="action-button" onClick={start}>
         <span className="material-symbols-outlined">{offIcon}</span>
       </button>
-    ),
+    )
 );
 
 function ControlTray({
@@ -63,7 +63,7 @@ function ControlTray({
   children,
   onVideoStreamChange = () => {},
   supportsVideo,
-  hideSettings,
+  enableEditingSettings,
 }: ControlTrayProps) {
   const videoStreams = [useWebcam(), useScreenCapture()];
   const [activeVideoStream, setActiveVideoStream] =
@@ -86,7 +86,7 @@ function ControlTray({
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--volume",
-      `${Math.max(5, Math.min(inVolume * 200, 8))}px`,
+      `${Math.max(5, Math.min(inVolume * 200, 8))}px`
     );
   }, [inVolume]);
 
@@ -213,7 +213,7 @@ function ControlTray({
         </div>
         <span className="text-indicator">Streaming</span>
       </div>
-      {hideSettings ? "" : <SettingsDialog />}
+      {enableEditingSettings ? <SettingsDialog /> : ""}
     </section>
   );
 }
