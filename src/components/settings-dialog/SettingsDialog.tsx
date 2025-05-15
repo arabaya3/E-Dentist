@@ -7,14 +7,13 @@ import {
 } from "react";
 import "./settings-dialog.scss";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
-import { LiveConfig } from "../../multimodal-live-types";
-import {
-  FunctionDeclaration,
-  FunctionDeclarationsTool,
-  Tool,
-} from "@google/generative-ai";
 import VoiceSelector from "./VoiceSelector";
 import ResponseModalitySelector from "./ResponseModalitySelector";
+import { FunctionDeclaration, LiveConnectConfig, Tool } from "@google/genai";
+
+type FunctionDeclarationsTool = Tool & {
+  functionDeclarations: FunctionDeclaration[];
+};
 
 export default function SettingsDialog() {
   const [open, setOpen] = useState(false);
@@ -33,14 +32,18 @@ export default function SettingsDialog() {
   }, [config]);
 
   const systemInstruction = useMemo(() => {
-    const s = config.systemInstruction?.parts.find((p) => p.text)?.text || "";
-
-    return s;
+    if (!!config.systemInstruction) {
+      return "";
+    }
+    if (typeof config.systemInstruction === "string") {
+      return config.systemInstruction;
+    }
+    return "";
   }, [config]);
 
   const updateConfig: FormEventHandler<HTMLTextAreaElement> = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
-      const newConfig: LiveConfig = {
+      const newConfig: LiveConnectConfig = {
         ...config,
         systemInstruction: {
           parts: [{ text: event.target.value }],
@@ -53,7 +56,7 @@ export default function SettingsDialog() {
 
   const updateFunctionDescription = useCallback(
     (editedFdName: string, newDescription: string) => {
-      const newConfig: LiveConfig = {
+      const newConfig: LiveConnectConfig = {
         ...config,
         tools:
           config.tools?.map((tool) => {
@@ -124,7 +127,7 @@ export default function SettingsDialog() {
                     type="text"
                     defaultValue={fd.description}
                     onBlur={(e) =>
-                      updateFunctionDescription(fd.name, e.target.value)
+                      updateFunctionDescription(fd.name!, e.target.value)
                     }
                   />
                 </div>

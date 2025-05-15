@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import Select from "react-select";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
+import { Modality } from "@google/genai";
 
 const responseOptions = [
   { value: "audio", label: "audio" },
@@ -16,13 +17,12 @@ export default function ResponseModalitySelector() {
   } | null>(responseOptions[0]);
 
   const updateConfig = useCallback(
-    (modality: "audio" | "text" | undefined) => {
+    (modality: "audio" | "text") => {
       setConfig({
         ...config,
-        generationConfig: {
-          ...config.generationConfig,
-          responseModalities: modality,
-        },
+        responseModalities: [
+          modality === "audio" ? Modality.AUDIO : Modality.TEXT,
+        ],
       });
     },
     [config, setConfig]

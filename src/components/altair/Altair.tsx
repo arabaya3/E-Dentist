@@ -13,20 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { type FunctionDeclaration, SchemaType } from "@google/generative-ai";
 import { useEffect, useRef, useState, memo } from "react";
 import vegaEmbed from "vega-embed";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
-import { ToolCall } from "../../multimodal-live-types";
+import {
+  FunctionDeclaration,
+  LiveServerToolCall,
+  Modality,
+  Type,
+} from "@google/genai";
 
 const declaration: FunctionDeclaration = {
   name: "render_altair",
   description: "Displays an altair graph in json format.",
   parameters: {
-    type: SchemaType.OBJECT,
+    type: Type.OBJECT,
     properties: {
       json_graph: {
-        type: SchemaType.STRING,
+        type: Type.STRING,
         description:
           "JSON STRING representation of the graph to render. Must be a string, not a json object",
       },
@@ -37,16 +41,14 @@ const declaration: FunctionDeclaration = {
 
 function AltairComponent() {
   const [jsonString, setJSONString] = useState<string>("");
-  const { client, setConfig } = useLiveAPIContext();
+  const { client, setConfig, setModel } = useLiveAPIContext();
 
   useEffect(() => {
+    setModel("models/gemini-2.0-flash-exp");
     setConfig({
-      model: "models/gemini-2.0-flash-exp",
-      generationConfig: {
-        responseModalities: "audio",
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
-        },
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
       },
       systemInstruction: {
         parts: [
@@ -61,13 +63,15 @@ function AltairComponent() {
         { functionDeclarations: [declaration] },
       ],
     });
-  }, [setConfig]);
+  }, [setConfig, setModel]);
 
   useEffect(() => {
-    const onToolCall = (toolCall: ToolCall) => {
-      console.log(`got toolcall`, toolCall);
+    const onToolCall = (toolCall: LiveServerToolCall) => {
+      if (!toolCall.functionCalls) {
+        return;
+      }
       const fc = toolCall.functionCalls.find(
-        (fc) => fc.name === declaration.name,
+        (fc) => fc.name === declaration.name
       );
       if (fc) {
         const str = (fc.args as any).json_graph;
@@ -79,12 +83,13 @@ function AltairComponent() {
         setTimeout(
           () =>
             client.sendToolResponse({
-              functionResponses: toolCall.functionCalls.map((fc) => ({
+              functionResponses: toolCall.functionCalls?.map((fc) => ({
                 response: { output: { success: true } },
                 id: fc.id,
+                name: fc.name,
               })),
             }),
-          200,
+          200
         );
       }
     };

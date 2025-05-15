@@ -39,7 +39,7 @@ function App() {
 
   return (
     <div className="App">
-      <LiveAPIProvider url={uri} apiKey={API_KEY}>
+      <LiveAPIProvider options={{ apiKey: API_KEY }}>
         <div className="streaming-console">
           <SidePanel />
           <main>

@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+import {
+  GoogleGenAIOptions,
+  LiveClientToolResponse,
+  LiveSendClientContentParameters,
+} from "@google/genai";
 import type {
   Content,
   FunctionCall,
@@ -29,17 +34,19 @@ import type {
 
 // Type-definitions
 
-/* outgoing types */
+/**
+ * the options to initiate the client
+ */
+export type LiveClientOptions = GoogleGenAIOptions & { apiKey: string };
 
 /**
  * the config to initiate the session
  */
-export type LiveConfig = {
-  model: string;
-  systemInstruction?: { parts: Part[] };
-  generationConfig?: Partial<LiveGenerationConfig>;
-  tools?: Array<Tool | { googleSearch: {} } | { codeExecution: {} }>;
-};
+
+// export type LiveConfig = {
+//   model: string;
+//   config?: LiveConnectConfig;
+// };
 
 export type LiveGenerationConfig = GenerationConfig & {
   responseModalities: "text" | "audio" | "image";
@@ -50,16 +57,6 @@ export type LiveGenerationConfig = GenerationConfig & {
       };
     };
   };
-};
-
-export type LiveOutgoingMessage =
-  | SetupMessage
-  | ClientContentMessage
-  | RealtimeInputMessage
-  | ToolResponseMessage;
-
-export type SetupMessage = {
-  setup: LiveConfig;
 };
 
 export type ClientContentMessage = {
@@ -143,17 +140,13 @@ export type StreamingLog = {
   date: Date;
   type: string;
   count?: number;
-  message: string | LiveOutgoingMessage | LiveIncomingMessage;
+  message: string | object;
 };
 
 // Type-Guards
 
 const prop = (a: any, prop: string, kind: string = "object") =>
   typeof a === "object" && typeof a[prop] === "object";
-
-// outgoing messages
-export const isSetupMessage = (a: unknown): a is SetupMessage =>
-  prop(a, "setup");
 
 export const isClientContentMessage = (a: unknown): a is ClientContentMessage =>
   prop(a, "clientContent");
@@ -175,7 +168,7 @@ export const isToolCallMessage = (a: any): a is ToolCallMessage =>
   prop(a, "toolCall");
 
 export const isToolCallCancellationMessage = (
-  a: unknown,
+  a: unknown
 ): a is ToolCallCancellationMessage =>
   prop(a, "toolCallCancellation") &&
   isToolCallCancellation((a as any).toolCallCancellation);
@@ -225,7 +218,7 @@ export function isLiveFunctionCall(value: unknown): value is LiveFunctionCall {
 }
 
 export function isLiveFunctionResponse(
-  value: unknown,
+  value: unknown
 ): value is LiveFunctionResponse {
   if (!value || typeof value !== "object") return false;
 
@@ -237,6 +230,6 @@ export function isLiveFunctionResponse(
 }
 
 export const isToolCallCancellation = (
-  a: unknown,
+  a: unknown
 ): a is ToolCallCancellationMessage["toolCallCancellation"] =>
   typeof a === "object" && Array.isArray((a as any).ids);

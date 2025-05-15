@@ -15,8 +15,8 @@ export default function VoiceSelector() {
 
   useEffect(() => {
     const voiceName =
-      config.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig
-        ?.voiceName || "Atari02";
+      config.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName ||
+      "Atari02";
     const voiceOption = { value: voiceName, label: voiceName };
     setSelectedOption(voiceOption);
   }, [config]);
@@ -30,13 +30,10 @@ export default function VoiceSelector() {
     (voiceName: string) => {
       setConfig({
         ...config,
-        generationConfig: {
-          ...config.generationConfig,
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: voiceName,
-              },
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: voiceName,
             },
           },
         },
