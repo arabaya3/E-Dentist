@@ -31,12 +31,27 @@ export default function SettingsDialog() {
       .flat();
   }, [config]);
 
+  // system instructions can come in many types
   const systemInstruction = useMemo(() => {
-    if (!!config.systemInstruction) {
+    if (!config.systemInstruction) {
       return "";
     }
     if (typeof config.systemInstruction === "string") {
       return config.systemInstruction;
+    }
+    if (Array.isArray(config.systemInstruction)) {
+      console.log(config.systemInstruction);
+      return config.systemInstruction
+        .map((p) => (typeof p === "string" ? p : p.text))
+        .join("\n");
+    }
+    if (
+      typeof config.systemInstruction === "object" &&
+      "parts" in config.systemInstruction
+    ) {
+      return (
+        config.systemInstruction.parts?.map((p) => p.text).join("\n") || ""
+      );
     }
     return "";
   }, [config]);
@@ -45,9 +60,7 @@ export default function SettingsDialog() {
     (event: ChangeEvent<HTMLTextAreaElement>) => {
       const newConfig: LiveConnectConfig = {
         ...config,
-        systemInstruction: {
-          parts: [{ text: event.target.value }],
-        },
+        systemInstruction: event.target.value,
       };
       setConfig(newConfig);
     },

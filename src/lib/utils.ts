@@ -21,7 +21,7 @@ export type GetAudioContextOptions = AudioContextOptions & {
 const map: Map<string, AudioContext> = new Map();
 
 export const audioContext: (
-  options?: GetAudioContextOptions,
+  options?: GetAudioContextOptions
 ) => Promise<AudioContext> = (() => {
   const didInteract = new Promise((res) => {
     window.addEventListener("pointerdown", res, { once: true });
@@ -61,20 +61,6 @@ export const audioContext: (
     }
   };
 })();
-
-export const blobToJSON = (blob: Blob) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (reader.result) {
-        const json = JSON.parse(reader.result as string);
-        resolve(json);
-      } else {
-        reject("oops");
-      }
-    };
-    reader.readAsText(blob);
-  });
 
 export function base64ToArrayBuffer(base64: string) {
   var binaryString = atob(base64);

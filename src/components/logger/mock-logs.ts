@@ -17,7 +17,7 @@
 /**
  * this module is just mock data, intended to make it easier to develop and style the logger
  */
-import type { StreamingLog } from "../../multimodal-live-types";
+import type { StreamingLog } from "../../types";
 
 const soundLogs = (n: number): StreamingLog[] =>
   new Array(n).fill(0).map(
@@ -25,7 +25,7 @@ const soundLogs = (n: number): StreamingLog[] =>
       date: new Date(),
       type: "server.audio",
       message: "buffer (11250)",
-    }),
+    })
   );
 //
 const realtimeLogs = (n: number): StreamingLog[] =>
@@ -34,15 +34,16 @@ const realtimeLogs = (n: number): StreamingLog[] =>
       date: new Date(),
       type: "client.realtimeInput",
       message: "audio",
-    }),
+    })
   );
 
 export const mockLogs: StreamingLog[] = [
   {
     date: new Date(),
     type: "client.open",
-    message: "connected to socket",
+    message: "connected",
   },
+  { date: new Date(), type: "receive", message: "setupComplete" },
   ...realtimeLogs(10),
   ...soundLogs(10),
   {
@@ -90,19 +91,15 @@ export const mockLogs: StreamingLog[] = [
     date: new Date(),
     type: "client.send",
     message: {
-      clientContent: {
-        turns: [
-          {
-            role: "User",
-            parts: [
-              {
-                text: "How much wood could a woodchuck chuck if a woodchuck could chuck wood",
-              },
-            ],
-          },
-        ],
-        turnComplete: true,
-      },
+      turns: [
+        {
+          text: "How much wood could a woodchuck chuck if a woodchuck could chuck wood",
+        },
+        {
+          text: "more text",
+        },
+      ],
+      turnComplete: false,
     },
   },
   {
@@ -138,14 +135,22 @@ export const mockLogs: StreamingLog[] = [
     date: new Date(),
     type: "client.toolResponse",
     message: {
-      toolResponse: {
-        functionResponses: [
-          {
-            response: { success: true },
-            id: "akslaj-10102",
-          },
-        ],
-      },
+      functionResponses: [
+        {
+          response: { success: true },
+          id: "akslaj-10102",
+        },
+      ],
     },
+  },
+  {
+    date: new Date(),
+    type: "receive.serverContent",
+    message: "interrupted",
+  },
+  {
+    date: new Date(),
+    type: "receive.serverContent",
+    message: "turnComplete",
   },
 ];

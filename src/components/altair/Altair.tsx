@@ -103,6 +103,7 @@ function AltairComponent() {
 
   useEffect(() => {
     if (embedRef.current && jsonString) {
+      console.log("jsonString", jsonString);
       vegaEmbed(embedRef.current, JSON.parse(jsonString));
     }
   }, [embedRef, jsonString]);

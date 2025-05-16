@@ -17,7 +17,6 @@
 import {
   Content,
   GoogleGenAI,
-  GoogleGenAIOptions,
   LiveCallbacks,
   LiveClientToolResponse,
   LiveConnectConfig,
@@ -31,7 +30,7 @@ import {
 
 import { EventEmitter } from "eventemitter3";
 import { difference } from "lodash";
-import { LiveClientOptions, StreamingLog } from "../multimodal-live-types";
+import { LiveClientOptions, StreamingLog } from "../types";
 import { base64ToArrayBuffer } from "./utils";
 
 /**
@@ -62,11 +61,6 @@ export interface LiveClientEventTypes {
   // Emitted when the current turn is complete
   turncomplete: () => void;
 }
-
-export type MultimodalLiveAPIClientConnection = {
-  url?: string;
-  apiKey: string;
-};
 
 /**
  * A event-emitting class that manages the connection to the websocket and emits
@@ -107,7 +101,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     this.onmessage = this.onmessage.bind(this);
   }
 
-  protected log(type: string, message: string | object) {
+  protected log(type: string, message: StreamingLog["message"]) {
     const log: StreamingLog = {
       date: new Date(),
       type,
@@ -149,6 +143,9 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   }
 
   public disconnect() {
+    if (!this.session) {
+      return false;
+    }
     this.session?.close();
     this._session = null;
     this._status = "disconnected";
@@ -186,7 +183,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       return;
     }
     if (message.toolCallCancellation) {
-      this.log("receive.toolCallCancellation", message);
+      this.log("server.toolCallCancellation", message);
       this.emit("toolcallcancellation", message.toolCallCancellation);
       return;
     }
@@ -196,12 +193,12 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     if (message.serverContent) {
       const { serverContent } = message;
       if ("interrupted" in serverContent) {
-        this.log("receive.serverContent", "interrupted");
+        this.log("server.content", "interrupted");
         this.emit("interrupted");
         return;
       }
       if ("turnComplete" in serverContent) {
-        this.log("server.send", "turnComplete");
+        this.log("server.content", "turnComplete");
         this.emit("turncomplete");
       }
 
@@ -280,7 +277,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       this.session?.sendToolResponse({
         functionResponses: toolResponse.functionResponses,
       });
-      this.log(`client.toolResponse`, { toolResponse });
+      this.log(`client.toolResponse`, toolResponse);
     }
   }
 
@@ -289,6 +286,9 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
    */
   send(parts: Part | Part[], turnComplete: boolean = true) {
     this.session?.sendClientContent({ turns: parts, turnComplete });
-    this.log(`client.send`, { turns: parts, turnComplete });
+    this.log(`client.send`, {
+      turns: Array.isArray(parts) ? parts : [parts],
+      turnComplete,
+    });
   }
 }
