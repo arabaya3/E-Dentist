@@ -40,7 +40,6 @@ export default function SettingsDialog() {
       return config.systemInstruction;
     }
     if (Array.isArray(config.systemInstruction)) {
-      console.log(config.systemInstruction);
       return config.systemInstruction
         .map((p) => (typeof p === "string" ? p : p.text))
         .join("\n");

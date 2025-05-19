@@ -17,7 +17,7 @@
 import "./logger.scss";
 
 import cn from "classnames";
-import { ReactNode } from "react";
+import { memo, ReactNode } from "react";
 import { useLoggerStore } from "../../lib/store-logger";
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { vs2015 as dark } from "react-syntax-highlighter/dist/esm/styles/hljs";
@@ -36,34 +36,36 @@ import {
 
 const formatTime = (d: Date) => d.toLocaleTimeString().slice(0, -3);
 
-const LogEntry = ({
-  log,
-  MessageComponent,
-}: {
-  log: StreamingLog;
-  MessageComponent: ({
-    message,
+const LogEntry = memo(
+  ({
+    log,
+    MessageComponent,
   }: {
-    message: StreamingLog["message"];
-  }) => ReactNode;
-}): JSX.Element => (
-  <li
-    className={cn(
-      `plain-log`,
-      `source-${log.type.slice(0, log.type.indexOf("."))}`,
-      {
-        receive: log.type.includes("receive"),
-        send: log.type.includes("send"),
-      }
-    )}
-  >
-    <span className="timestamp">{formatTime(log.date)}</span>
-    <span className="source">{log.type}</span>
-    <span className="message">
-      <MessageComponent message={log.message} />
-    </span>
-    {log.count && <span className="count">{log.count}</span>}
-  </li>
+    log: StreamingLog;
+    MessageComponent: ({
+      message,
+    }: {
+      message: StreamingLog["message"];
+    }) => ReactNode;
+  }): JSX.Element => (
+    <li
+      className={cn(
+        `plain-log`,
+        `source-${log.type.slice(0, log.type.indexOf("."))}`,
+        {
+          receive: log.type.includes("receive"),
+          send: log.type.includes("send"),
+        }
+      )}
+    >
+      <span className="timestamp">{formatTime(log.date)}</span>
+      <span className="source">{log.type}</span>
+      <span className="message">
+        <MessageComponent message={log.message} />
+      </span>
+      {log.count && <span className="count">{log.count}</span>}
+    </li>
+  )
 );
 
 const PlainTextMessage = ({
@@ -87,7 +89,7 @@ function tryParseCodeExecutionResult(output: string) {
   }
 }
 
-const RenderPart = ({ part }: { part: Part }) => {
+const RenderPart = memo(({ part }: { part: Part }) => {
   if (part.text && part.text.length) {
     return <p className="part part-text">{part.text}</p>;
   }
@@ -122,9 +124,9 @@ const RenderPart = ({ part }: { part: Part }) => {
     );
   }
   return <div className="part part-unknown">&nbsp;</div>;
-};
+});
 
-const ClientContentLog = ({ message }: Message) => {
+const ClientContentLog = memo(({ message }: Message) => {
   const { turns, turnComplete } = message as ClientContentLogType;
   const textParts = turns.filter((part) => !(part.text && part.text === "\n"));
   return (
@@ -138,9 +140,9 @@ const ClientContentLog = ({ message }: Message) => {
       {!turnComplete ? <span>turnComplete: false</span> : ""}
     </div>
   );
-};
+});
 
-const ToolCallLog = ({ message }: Message) => {
+const ToolCallLog = memo(({ message }: Message) => {
   const { toolCall } = message as { toolCall: LiveServerToolCall };
   return (
     <div className={cn("rich-log tool-call")}>
@@ -154,7 +156,7 @@ const ToolCallLog = ({ message }: Message) => {
       ))}
     </div>
   );
-};
+});
 
 const ToolCallCancellationLog = ({ message }: Message): JSX.Element => (
   <div className={cn("rich-log tool-call-cancellation")}>
@@ -172,17 +174,19 @@ const ToolCallCancellationLog = ({ message }: Message): JSX.Element => (
   </div>
 );
 
-const ToolResponseLog = ({ message }: Message): JSX.Element => (
-  <div className={cn("rich-log tool-response")}>
-    {(message as LiveClientToolResponse).functionResponses?.map((fc) => (
-      <div key={`tool-response-${fc.id}`} className="part">
-        <h5>Function Response: {fc.id}</h5>
-        <SyntaxHighlighter language="json" style={dark}>
-          {JSON.stringify(fc.response, null, "  ")}
-        </SyntaxHighlighter>
-      </div>
-    ))}
-  </div>
+const ToolResponseLog = memo(
+  ({ message }: Message): JSX.Element => (
+    <div className={cn("rich-log tool-response")}>
+      {(message as LiveClientToolResponse).functionResponses?.map((fc) => (
+        <div key={`tool-response-${fc.id}`} className="part">
+          <h5>Function Response: {fc.id}</h5>
+          <SyntaxHighlighter language="json" style={dark}>
+            {JSON.stringify(fc.response, null, "  ")}
+          </SyntaxHighlighter>
+        </div>
+      ))}
+    </div>
+  )
 );
 
 const ModelTurnLog = ({ message }: Message): JSX.Element => {
