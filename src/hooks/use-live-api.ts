@@ -60,6 +60,10 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
   }, [audioStreamerRef]);
 
   useEffect(() => {
+    const onOpen = () => {
+      setConnected(true);
+    };
+
     const onClose = () => {
       setConnected(false);
     };
@@ -70,12 +74,14 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
       audioStreamerRef.current?.addPCM16(new Uint8Array(data));
 
     client
+      .on("open", onOpen)
       .on("close", onClose)
       .on("interrupted", stopAudioStreamer)
       .on("audio", onAudio);
 
     return () => {
       client
+        .off("open", onOpen)
         .off("close", onClose)
         .off("interrupted", stopAudioStreamer)
         .off("audio", onAudio);
@@ -83,14 +89,12 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
   }, [client]);
 
   const connect = useCallback(async () => {
-    console.log(config);
     if (!config) {
       throw new Error("config has not been set");
     }
     client.disconnect();
     await client.connect(model, config);
-    setConnected(true);
-  }, [client, setConnected, config, model]);
+  }, [client, config, model]);
 
   const disconnect = useCallback(async () => {
     client.disconnect();
