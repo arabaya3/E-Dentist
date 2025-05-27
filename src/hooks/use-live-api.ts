@@ -68,12 +68,17 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
       setConnected(false);
     };
 
+    const onError = (error: ErrorEvent) => {
+      console.error("error", error);
+    };
+
     const stopAudioStreamer = () => audioStreamerRef.current?.stop();
 
     const onAudio = (data: ArrayBuffer) =>
       audioStreamerRef.current?.addPCM16(new Uint8Array(data));
 
     client
+      .on("error", onError)
       .on("open", onOpen)
       .on("close", onClose)
       .on("interrupted", stopAudioStreamer)
@@ -81,10 +86,12 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
 
     return () => {
       client
+        .off("error", onError)
         .off("open", onOpen)
         .off("close", onClose)
         .off("interrupted", stopAudioStreamer)
-        .off("audio", onAudio);
+        .off("audio", onAudio)
+        .disconnect();
     };
   }, [client]);
 

@@ -44,6 +44,8 @@ export interface LiveClientEventTypes {
   close: (event: CloseEvent) => void;
   // Emitted when content is received from the server
   content: (data: LiveServerContent) => void;
+  // Emitted when an error occurs
+  error: (error: ErrorEvent) => void;
   // Emitted when the server interrupts the current generation
   interrupted: () => void;
   // Emitted for logging events
@@ -161,6 +163,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
 
   protected onerror(e: ErrorEvent) {
     this.log("server.error", e.message);
+    this.emit("error", e);
   }
 
   protected onclose(e: CloseEvent) {
