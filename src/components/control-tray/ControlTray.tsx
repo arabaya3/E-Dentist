@@ -42,9 +42,6 @@ type MediaStreamButtonProps = {
   stop: () => any;
 };
 
-/**
- * button used for triggering webcam or screen-capture
- */
 const MediaStreamButton = memo(
   ({ isStreaming, onIcon, offIcon, start, stop }: MediaStreamButtonProps) =>
     isStreaming ? (
@@ -145,7 +142,6 @@ function ControlTray({
     };
   }, [connected, activeVideoStream, client, videoRef]);
 
-  //handler for swapping from one video-stream to the next
   const changeStreams = (next?: UseMediaStreamResult) => async () => {
     if (next) {
       const mediaStream = await next.start();

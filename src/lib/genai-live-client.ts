@@ -33,42 +33,22 @@ import { difference } from "lodash";
 import { LiveClientOptions, StreamingLog } from "../types";
 import { base64ToArrayBuffer } from "./utils";
 
-/**
- * Event types that can be emitted by the MultimodalLiveClient.
- * Each event corresponds to a specific message from GenAI or client state change.
- */
 export interface LiveClientEventTypes {
-  // Emitted when audio data is received
   audio: (data: ArrayBuffer) => void;
-  // Emitted when the connection closes
   close: (event: CloseEvent) => void;
-  // Emitted when content is received from the server
   content: (data: LiveServerContent) => void;
-  // Emitted when an error occurs
   error: (error: ErrorEvent) => void;
-  // Emitted when the server interrupts the current generation
   interrupted: () => void;
-  // Emitted for logging events
   log: (log: StreamingLog) => void;
-  // Emitted when the connection opens
   open: () => void;
-  // Emitted when the initial setup is complete
   setupcomplete: () => void;
-  // Emitted when a tool call is received
   toolcall: (toolCall: LiveServerToolCall) => void;
-  // Emitted when a tool call is cancelled
   toolcallcancellation: (
     toolcallCancellation: LiveServerToolCallCancellation
   ) => void;
-  // Emitted when the current turn is complete
   turncomplete: () => void;
 }
 
-/**
- * A event-emitting class that manages the connection to the websocket and emits
- * events to the rest of the application.
- * If you dont want to use react you can still use this.
- */
 export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   protected client: GoogleGenAI;
 
@@ -191,8 +171,6 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       return;
     }
 
-    // this json also might be `contentUpdate { interrupted: true }`
-    // or contentUpdate { end_of_turn: true }
     if (message.serverContent) {
       const { serverContent } = message;
       if ("interrupted" in serverContent) {
@@ -208,15 +186,12 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       if ("modelTurn" in serverContent) {
         let parts: Part[] = serverContent.modelTurn?.parts || [];
 
-        // when its audio that is returned for modelTurn
         const audioParts = parts.filter(
           (p) => p.inlineData && p.inlineData.mimeType?.startsWith("audio/pcm")
         );
         const base64s = audioParts.map((p) => p.inlineData?.data);
 
-        // strip the audio parts out of the modelTurn
         const otherParts = difference(parts, audioParts);
-        // console.log("otherParts", otherParts);
 
         base64s.forEach((b64) => {
           if (b64) {
@@ -240,9 +215,6 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     }
   }
 
-  /**
-   * send realtimeInput, this is base64 chunks of "audio/pcm" and/or "image/jpg"
-   */
   sendRealtimeInput(chunks: Array<{ mimeType: string; data: string }>) {
     let hasAudio = false;
     let hasVideo = false;
@@ -269,9 +241,6 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     this.log(`client.realtimeInput`, message);
   }
 
-  /**
-   *  send a response to a function call and provide the id of the functions you are responding to
-   */
   sendToolResponse(toolResponse: LiveClientToolResponse) {
     if (
       toolResponse.functionResponses &&
@@ -284,9 +253,6 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     }
   }
 
-  /**
-   * send normal content parts such as { text }
-   */
   send(parts: Part | Part[], turnComplete: boolean = true) {
     this.session?.sendClientContent({ turns: parts, turnComplete });
     this.log(`client.send`, {

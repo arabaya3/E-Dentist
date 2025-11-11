@@ -1,7 +1,6 @@
 .side-panel {
   background: var(--Neutral-00);
   width: 40px;
-  /* when closed */
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -14,7 +13,6 @@
   font-style: normal;
   font-weight: 400;
   line-height: 160%;
-  /* 20.8px */
 
   .hidden {
     display: none !important;
@@ -46,7 +44,6 @@
       font-style: normal;
       font-weight: 500;
       line-height: 16px;
-      /* 100% */
 
       opacity: 0;
       display: none;
@@ -132,7 +129,6 @@
     flex-grow: 1;
     overflow-x: hidden;
     overflow-y: auto;
-    /*scrollbar-gutter: stable both-edges;*/
   }
 
   .input-container {

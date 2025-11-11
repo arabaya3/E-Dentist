@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * A registry to map attached worklets by their audio-context
- * any module using `audioContext.audioWorklet.addModule(` should register the worklet here
- */
 export type WorkletGraph = {
   node?: AudioWorkletNode;
   handlers: Array<(this: MessagePort, ev: MessageEvent) => any>;

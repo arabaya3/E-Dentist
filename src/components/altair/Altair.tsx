@@ -22,6 +22,7 @@ import {
   Modality,
   Type,
 } from "@google/genai";
+import { GEMINI_LIVE_MODEL } from "../../config";
 
 const declaration: FunctionDeclaration = {
   name: "render_altair",
@@ -44,7 +45,7 @@ function AltairComponent() {
   const { client, setConfig, setModel } = useLiveAPIContext();
 
   useEffect(() => {
-    setModel("models/gemini-2.0-flash-exp");
+    setModel(GEMINI_LIVE_MODEL);
     setConfig({
       responseModalities: [Modality.AUDIO],
       speechConfig: {
@@ -53,13 +54,19 @@ function AltairComponent() {
       systemInstruction: {
         parts: [
           {
-            text: 'You are my helpful assistant. Any time I ask you for a graph call the "render_altair" function I have provided you. Dont ask for additional information just make your best judgement.',
+            text: `You are eDentist.AI — a bilingual (Arabic/English) assistant dedicated to dental clinics.
+
+Core responsibilities:
+- Gather patient name, phone, requested service, preferred doctor, branch, date, and time before confirming bookings.
+- Offer available dentists and suggest alternatives when the requested slot is unavailable.
+- Respect business rules: working hours Sunday–Thursday, 9 AM–9 PM; clinic closed on Fridays/Saturdays.
+- Pull response templates from clinic knowledge and keep the tone professional, empathetic, and focused on oral care.
+- When a user explicitly asks for analytics or charts, you may call the render_altair tool with the best graph you can infer; otherwise, concentrate on appointment booking, follow-ups, cancellations, orthodontics, whitening, implants, hygienic reminders, and clinic FAQs.
+- Avoid generic assistant phrasing—always sound like a specialised dental coordinator from eDentist.AI.`,
           },
         ],
       },
       tools: [
-        // there is a free-tier quota for search
-        { googleSearch: {} },
         { functionDeclarations: [declaration] },
       ],
     });
@@ -77,8 +84,6 @@ function AltairComponent() {
         const str = (fc.args as any).json_graph;
         setJSONString(str);
       }
-      // send data for the response of your tool call
-      // in this case Im just saying it was successful
       if (toolCall.functionCalls.length) {
         setTimeout(
           () =>

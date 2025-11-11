@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-/**
- * this module is just mock data, intended to make it easier to develop and style the logger
- */
 import type { StreamingLog } from "../../types";
 
 const soundLogs = (n: number): StreamingLog[] =>
@@ -27,7 +24,6 @@ const soundLogs = (n: number): StreamingLog[] =>
       message: "buffer (11250)",
     })
   );
-//
 const realtimeLogs = (n: number): StreamingLog[] =>
   new Array(n).fill(0).map(
     (): StreamingLog => ({
@@ -64,16 +60,6 @@ export const mockLogs: StreamingLog[] = [
       },
     },
   },
-  //this one is just a string
-  // {
-  //   date: new Date(),
-  //   type: "server.send",
-  //   message: {
-  //     serverContent: {
-  //       turnComplete: true,
-  //     },
-  //   },
-  // },
   ...realtimeLogs(10),
   ...soundLogs(20),
   {

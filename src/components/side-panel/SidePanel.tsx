@@ -44,7 +44,6 @@ export default function SidePanel() {
   } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  //scroll the log to the bottom when new logs come in
   useEffect(() => {
     if (loggerRef.current) {
       const el = loggerRef.current;
@@ -56,7 +55,6 @@ export default function SidePanel() {
     }
   }, [logs]);
 
-  // listen for log events and store them
   useEffect(() => {
     client.on("log", log);
     return () => {

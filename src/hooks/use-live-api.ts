@@ -21,6 +21,7 @@ import { AudioStreamer } from "../lib/audio-streamer";
 import { audioContext } from "../lib/utils";
 import VolMeterWorket from "../lib/worklets/vol-meter";
 import { LiveConnectConfig } from "@google/genai";
+import { GEMINI_LIVE_MODEL } from "../config";
 
 export type UseLiveAPIResults = {
   client: GenAILiveClient;
@@ -38,12 +39,11 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
   const client = useMemo(() => new GenAILiveClient(options), [options]);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
 
-  const [model, setModel] = useState<string>("models/gemini-2.0-flash-exp");
+  const [model, setModel] = useState<string>(GEMINI_LIVE_MODEL);
   const [config, setConfig] = useState<LiveConnectConfig>({});
   const [connected, setConnected] = useState(false);
   const [volume, setVolume] = useState(0);
 
-  // register audio for streaming server -> speakers
   useEffect(() => {
     if (!audioStreamerRef.current) {
       audioContext({ id: "audio-out" }).then((audioCtx: AudioContext) => {
@@ -52,9 +52,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
           .addWorklet<any>("vumeter-out", VolMeterWorket, (ev: any) => {
             setVolume(ev.data.volume);
           })
-          .then(() => {
-            // Successfully added worklet
-          });
+          .then(() => undefined);
       });
     }
   }, [audioStreamerRef]);

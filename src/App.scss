@@ -28,7 +28,6 @@
 
   --font-family: "Space Mono", monospace;
 
-  /* */
   --Neutral-00: #000;
   --Neutral-5: #181a1b;
   --Neutral-10: #1c1f21;
@@ -146,13 +145,29 @@ body {
     gap: 1rem;
     max-width: 100%;
     overflow: hidden;
+    padding: 1rem;
   }
 
   .main-app-area {
     display: flex;
+    flex-direction: column;
     flex: 1;
     align-items: center;
+    justify-content: flex-start;
+    gap: 1.5rem;
+    width: 100%;
+    max-height: 100%;
+    overflow-y: auto;
+    padding-bottom: 1rem;
+  }
+
+  .visual-stack {
+    display: flex;
+    align-items: center;
     justify-content: center;
+    gap: 1rem;
+    width: 100%;
+    max-width: 960px;
   }
 
   .function-call {
@@ -164,7 +179,6 @@ body {
   }
 }
 
-/* video player */
 .stream {
   flex-grow: 1;
   max-width: 90%;

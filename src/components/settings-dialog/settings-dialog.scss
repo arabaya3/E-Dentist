@@ -19,38 +19,6 @@
     font-style: italic;
   }
 
-  /*.connected-indicator {
-    &:before {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 0;
-      display: block;
-      content: "";
-      width: 100%;
-      height: 100%;
-      background-color: var(--Neutral-5);
-      opacity: 0.85;
-    }
-    z-index: 1;
-    
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--Neutral-80);
-
-    p {
-      z-index: 1;
-    }
-  }*/
-
   h4 {
     margin-left: 4px;
     margin-bottom: 10px;
@@ -118,14 +86,12 @@
   .function-declarations {
     font-size: 66%;
     width: 100%;
-    /* Enables vertical scrolling */
   }
 
   .fd-rows {
     display: grid;
     grid-template-columns: 1fr 0.5fr 1.5fr;
     row-gap: 6px;
-    /* Three columns, last one takes remaining space */
   }
 
   .fd-row-name {
@@ -150,12 +116,8 @@
   .fd-row {
     display: contents;
     color: var(--Neutral-70);
-    /* Make data-row participate in the grid layout of data-rows, without being an additional grid row */
     align-items: center;
-    /* Vertically center the content of the row */
-    /* Bottom border for each row */
     height: 35px;
-    /* The row height */
   }
 
   .fd-row-description {

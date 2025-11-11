@@ -65,7 +65,6 @@ export class AudioRecorder extends EventEmitter {
       );
 
       this.recordingWorklet.port.onmessage = async (ev: MessageEvent) => {
-        // worklet processes recording floats and messages converted buffer
         const arrayBuffer = ev.data.data.int16arrayBuffer;
 
         if (arrayBuffer) {
@@ -75,7 +74,6 @@ export class AudioRecorder extends EventEmitter {
       };
       this.source.connect(this.recordingWorklet);
 
-      // vu meter worklet
       const vuWorkletName = "vu-meter";
       await this.audioContext.audioWorklet.addModule(
         createWorketFromSrc(vuWorkletName, VolMeterWorket),
@@ -93,8 +91,6 @@ export class AudioRecorder extends EventEmitter {
   }
 
   stop() {
-    // its plausible that stop would be called before start completes
-    // such as if the websocket immediately hangs up
     const handleStop = () => {
       this.source?.disconnect();
       this.stream?.getTracks().forEach((track) => track.stop());

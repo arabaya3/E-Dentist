@@ -17,6 +17,7 @@
 import { create } from "zustand";
 import { StreamingLog } from "../types";
 import { mockLogs } from "../components/logger/mock-logs";
+import { sanitizeObject, sanitizeSensitiveText } from "./security";
 
 interface StoreLoggerState {
   maxLogs: number;
@@ -27,10 +28,16 @@ interface StoreLoggerState {
 
 export const useLoggerStore = create<StoreLoggerState>((set, get) => ({
   maxLogs: 100,
-  logs: [], //mockLogs,
+  logs: [],
   log: ({ date, type, message }: StreamingLog) => {
     set((state) => {
       const prevLog = state.logs.at(-1);
+      const sanitizedMessage =
+        typeof message === "object"
+          ? sanitizeObject(message as Record<string, unknown>)
+          : typeof message === "string"
+          ? sanitizeSensitiveText(message)
+          : message;
       if (prevLog && prevLog.type === type && prevLog.message === message) {
         return {
           logs: [
@@ -38,7 +45,7 @@ export const useLoggerStore = create<StoreLoggerState>((set, get) => ({
             {
               date,
               type,
-              message,
+              message: sanitizedMessage,
               count: prevLog.count ? prevLog.count + 1 : 1,
             } as StreamingLog,
           ],
@@ -50,7 +57,7 @@ export const useLoggerStore = create<StoreLoggerState>((set, get) => ({
           {
             date,
             type,
-            message,
+            message: sanitizedMessage,
           } as StreamingLog,
         ],
       };

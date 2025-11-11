@@ -31,7 +31,6 @@ export default function SettingsDialog() {
       .flat();
   }, [config]);
 
-  // system instructions can come in many types
   const systemInstruction = useMemo(() => {
     if (!config.systemInstruction) {
       return "";

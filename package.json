@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "dependencies": {
     "@google/genai": "^0.14.0",
+    "@prisma/client": "^6.19.0",
     "classnames": "^2.5.1",
     "dotenv-flow": "^4.1.0",
     "eventemitter3": "^5.0.1",
+    "date-fns": "^3.6.0",
+    "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -25,6 +28,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:audio": "ts-node --transpile-only scripts/gemini-audio-smoke.ts",
+    "test:voice-engine": "ts-node --transpile-only scripts/voice-engine-smoke.ts",
+    "demo:conversation": "ts-node --transpile-only scripts/conversation-demo.ts",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -50,11 +56,14 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "@types/jest": "^27.5.2",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/lodash": "^4.17.13",
     "@types/node": "^16.18.119",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/uuid": "^10.0.0",
+    "prisma": "^6.19.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3"
   },

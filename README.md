@@ -14,6 +14,26 @@ To get started, [create a free Gemini API key](https://aistudio.google.com/apike
 $ npm install && npm start
 ```
 
+## Gemini Audio Setup
+
+1. Create a `.env` file that contains:
+   ```
+   GEMINI_API_KEY=...
+   PROJECT_ID=...
+   MODEL=gemini-2.5-audio
+   API_URL=https://generativelanguage.googleapis.com/v1beta/models
+   ```
+   Add the same values with the `REACT_APP_` prefix so they are available to the browser build.
+2. Run `npm install` to pull the Google Gemini SDK and supporting packages.
+3. Verify the live audio path locally with `npm run test:audio`. This sends a short PCM clip over the WebSocket client, waits for an audio reply, and reports the end-to-end latency. The script uses `tests/sample-input.wav` as a fixture—replace it with your own clip if desired.
+
+> **Note:** `gemini-2.5-audio` is not yet exposed over the public Live WebSocket interface. The app automatically falls back to `models/gemini-2.0-flash-exp` for live streaming while keeping your requested model for future HTTP/SSE integrations.
+
+## Voice Engine Module
+
+- The dual STT/TTS helper is documented in `docs/voice-engine.md`.
+- Run `npm run test:voice-engine` to transcribe bilingual fixtures and synthesize two fresh call responses (saved in `data/audio/out`).
+
 We have provided several example applications on other branches of this repository:
 
 New demos with GenAI SDK:
