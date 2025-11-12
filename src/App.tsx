@@ -14,59 +14,23 @@
  * limitations under the License.
  */
 
-import { useRef, useState } from "react";
 import "./App.scss";
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
-import SidePanel from "./components/side-panel/SidePanel";
-import { Altair } from "./components/altair/Altair";
-import ControlTray from "./components/control-tray/ControlTray";
-import cn from "classnames";
 import { LIVE_CLIENT_OPTIONS } from "./config";
-import {
-  AnalyticsDashboard,
-  AnalyticsOrchestrator,
-  AIOpsDashboard,
-} from "./ai/analytics";
+import AnalyticsOrchestrator from "./ai/dashboard/AnalyticsOrchestrator";
+import SimpleVoiceConsole from "./components/simple-voice/SimpleVoiceConsole";
+import VoiceAgentBootstrap from "./components/simple-voice/VoiceAgentBootstrap";
 
 function App() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-
   return (
-    <div className="App">
-      <LiveAPIProvider options={LIVE_CLIENT_OPTIONS}>
-        <AnalyticsOrchestrator>
-          <div className="streaming-console">
-            <SidePanel />
-            <main>
-              <div className="main-app-area">
-                <div className="visual-stack">
-                  <Altair />
-                  <video
-                    className={cn("stream", {
-                      hidden: !videoRef.current || !videoStream,
-                    })}
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                  />
-                </div>
-                <AnalyticsDashboard />
-                <AIOpsDashboard />
-              </div>
-
-              <ControlTray
-                videoRef={videoRef}
-                supportsVideo={true}
-                onVideoStreamChange={setVideoStream}
-                enableEditingSettings={true}
-              >
-              </ControlTray>
-            </main>
-          </div>
-        </AnalyticsOrchestrator>
-      </LiveAPIProvider>
-    </div>
+    <LiveAPIProvider options={LIVE_CLIENT_OPTIONS}>
+      <AnalyticsOrchestrator>
+        <VoiceAgentBootstrap />
+        <div className="App voice-app">
+          <SimpleVoiceConsole />
+        </div>
+      </AnalyticsOrchestrator>
+    </LiveAPIProvider>
   );
 }
 

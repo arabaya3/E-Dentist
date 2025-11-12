@@ -6,6 +6,7 @@ const {
   sanitizeSensitiveText,
   sanitizeObject,
 } = require('./security.ts');
+const { systemMetrics } = require('./systemMetrics.ts');
 
 const SENTIMENT_LABELS = ['satisfied', 'concerned', 'angry'];
 
@@ -637,6 +638,8 @@ class AnalyticsEngine {
         })
     );
 
+    const serviceMetrics = systemMetrics.getSnapshot();
+
     return {
       generatedAt: Date.now(),
       totals: {
@@ -684,6 +687,7 @@ class AnalyticsEngine {
       recentSessions,
       latestTimeline,
       activeSessions,
+      serviceMetrics,
     };
   }
 

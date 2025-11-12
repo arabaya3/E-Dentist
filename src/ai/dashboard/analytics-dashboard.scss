@@ -157,6 +157,53 @@
   }
 }
 
+.service-metrics {
+  grid-column: 1 / -1;
+
+  .service-metrics__summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.5rem;
+    font-size: 0.85rem;
+    color: var(--Neutral-60);
+
+    strong {
+      color: var(--Neutral-80);
+      font-weight: 600;
+      margin-right: 0.25rem;
+    }
+  }
+
+  .service-metrics__table-wrapper {
+    overflow-x: auto;
+  }
+
+  .service-metrics__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+
+    th,
+    td {
+      padding: 0.5rem 0.65rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      white-space: nowrap;
+    }
+
+    th {
+      color: var(--Neutral-60);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+  }
+}
+
 .panel {
   background: rgba(24, 26, 27, 0.85);
   border: 1px solid var(--Neutral-30);

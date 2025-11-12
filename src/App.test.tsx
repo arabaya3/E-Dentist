@@ -14,12 +14,75 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { ReactNode } from "react";
+import { render, screen } from "@testing-library/react";
+import App from "./App";
 
-test('renders learn react link', () => {
+jest.mock("./config", () => ({
+  LIVE_CLIENT_OPTIONS: { apiKey: "test-key", httpOptions: {} },
+}));
+
+jest.mock("./ai/dashboard/AnalyticsOrchestrator", () => ({
+  __esModule: true,
+  default: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+const mockClient = {
+  on: jest.fn().mockReturnThis(),
+  off: jest.fn().mockReturnThis(),
+  sendRealtimeInput: jest.fn(),
+  sendToolResponse: jest.fn(),
+};
+
+const mockContextValue = {
+  client: mockClient,
+  setConfig: jest.fn(),
+  config: {},
+  model: "models/test",
+  setModel: jest.fn(),
+  connected: false,
+  connect: jest.fn(),
+  disconnect: jest.fn(),
+  volume: 0,
+};
+
+jest.mock("./contexts/LiveAPIContext", () => {
+  const React = require("react");
+  const Context = React.createContext(null);
+  return {
+    LiveAPIProvider: ({ children }: { children: ReactNode }) => (
+      <Context.Provider value={mockContextValue}>{children}</Context.Provider>
+    ),
+    useLiveAPIContext: () => React.useContext(Context),
+  };
+});
+
+jest.mock("./lib/audio-recorder", () => {
+  class StubRecorder {
+    on() {
+      return this;
+    }
+
+    off() {
+      return this;
+    }
+
+    start() {
+      return Promise.resolve();
+    }
+
+    stop() {
+      return;
+    }
+  }
+
+  return { AudioRecorder: StubRecorder };
+});
+
+test("renders the voice assistant interface", () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: /edentist\.ai/i })
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument();
 });

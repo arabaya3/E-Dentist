@@ -54,6 +54,40 @@ type TimelineEntry = {
   timestamp: number;
 };
 
+type ServiceEndpointMetric = {
+  name: string;
+  count: number;
+  successCount: number;
+  clientErrorCount: number;
+  serverErrorCount: number;
+  successRate: number;
+  availability: number;
+  averageLatencyMs: number;
+  maxLatencyMs: number;
+  minLatencyMs: number;
+};
+
+type ServiceMetricsSnapshot = {
+  windowMs: number;
+  since: number;
+  totalRequests: number;
+  totalSuccess: number;
+  totalClientError: number;
+  totalServerError: number;
+  windowRequestCount: number;
+  successCount: number;
+  clientErrorCount: number;
+  serverErrorCount: number;
+  successRate: number;
+  availability: number;
+  averageLatencyMs: number;
+  p95LatencyMs: number;
+  maxLatencyMs: number;
+  minLatencyMs: number;
+  lastFailureAt: number | null;
+  perEndpoint: ServiceEndpointMetric[];
+};
+
 type PerformanceReport = {
   generatedAt: number;
   totals: {
@@ -73,6 +107,7 @@ type PerformanceReport = {
     sessionId: string;
     timeline: TimelineEntry[];
   } | null;
+  serviceMetrics?: ServiceMetricsSnapshot;
 };
 
 const formatMs = (value: number) => {
@@ -90,23 +125,47 @@ const formatMs = (value: number) => {
   return `${minutes} min ${seconds}s`;
 };
 
+const formatWindow = (value: number) => {
+  if (value < 60_000) {
+    return `${Math.round(value / 1000)}s`;
+  }
+  const minutes = Math.round(value / 60_000);
+  return `${minutes} min`;
+};
+
+const formatRelativeTime = (value: number | null) => {
+  if (!value) {
+    return "No failures recorded";
+  }
+  const diff = Date.now() - value;
+  if (diff < 60_000) {
+    return "Just now";
+  }
+  if (diff < 3_600_000) {
+    const minutes = Math.floor(diff / 60_000);
+    return `${minutes} min ago`;
+  }
+  const hours = Math.floor(diff / 3_600_000);
+  return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+};
+
 const sentimentTranslations: Record<SentimentLabel, string> = {
-  satisfied: "رضا",
-  concerned: "قلق",
-  angry: "غضب",
+  satisfied: "Satisfied",
+  concerned: "Concerned",
+  angry: "Angry",
 };
 
 const statusLabel = (session: SessionSummary) => {
   if (session.status === "active") {
-    return "قيد التنفيذ";
+    return "In progress";
   }
   if (session.success === true) {
-    return "ناجحة";
+    return "Successful";
   }
   if (session.success === false) {
-    return "غير مكتملة";
+    return "Incomplete";
   }
-  return "منتهية";
+  return "Completed";
 };
 
 const TOKEN_EVENT = "ed-auth-token-changed";
@@ -138,7 +197,7 @@ export default function AnalyticsDashboard() {
   const fetchReport = async () => {
     const token = getAuthToken();
     if (!token) {
-      setError("يتطلب الوصول إلى التحليلات تسجيل الدخول الآمن (JWT).");
+      setError("Analytics access requires a valid JWT login.");
       setIsLoading(false);
       return;
     }
@@ -161,7 +220,7 @@ export default function AnalyticsDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "تعذر تحديث لوحة التحليلات في الوقت الحالي"
+          : "Unable to refresh the analytics dashboard right now."
       );
     } finally {
       setIsLoading(false);
@@ -185,7 +244,7 @@ export default function AnalyticsDashboard() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      setProvidersError("يُرجى المصادقة قبل استعراض موفّري التكامل.");
+      setProvidersError("Please authenticate before viewing integration providers.");
       return;
     }
     listConfiguredProviders()
@@ -200,7 +259,7 @@ export default function AnalyticsDashboard() {
         setProvidersError(
           err instanceof Error
             ? err.message
-            : "تعذر تحميل قائمة أنظمة الـ PMS/CRM المتاحة"
+            : "Unable to load the available PMS/CRM systems."
         );
       });
   }, [authVersion]);
@@ -216,29 +275,29 @@ export default function AnalyticsDashboard() {
         report,
       });
       if (response.status !== "success") {
-        throw new Error(response.message || "فشل تصدير البيانات");
+        throw new Error(response.message || "Failed to export data");
       }
       setExportState("done");
-      setExportMessage("تم إرسال التقرير بنجاح.");
+      setExportMessage("Report sent successfully.");
     } catch (err) {
       setExportState("failed");
       setExportMessage(
         err instanceof Error
           ? err.message
-          : "تعذر إرسال التقرير. يرجى المحاولة لاحقاً."
+          : "Unable to send the report. Please try again later."
       );
     }
   };
 
   const handleTokenSave = () => {
     if (!tokenInput.trim()) {
-      setAuthMessage("أدخل رمز JWT صالحاً.");
+      setAuthMessage("Enter a valid JWT token.");
       setAuthState("error");
       return;
     }
     setAuthToken(tokenInput.trim());
     setAuthState("success");
-    setAuthMessage("تم حفظ الرمز. سيتم تحديث البيانات الآن.");
+    setAuthMessage("Token saved. Data will refresh shortly.");
     setAuthVersion((prev) => prev + 1);
   };
 
@@ -257,14 +316,14 @@ export default function AnalyticsDashboard() {
       const token = getAuthToken();
       setTokenInput(token ?? "");
       setAuthState("success");
-      setAuthMessage("تم إصدار وتخزين الرمز بنجاح.");
+      setAuthMessage("Token issued and stored successfully.");
       setAuthVersion((prev) => prev + 1);
     } catch (error) {
       setAuthState("error");
       setAuthMessage(
         error instanceof Error
           ? error.message
-          : "تعذر إصدار الرمز، تحقّق من البيانات."
+          : "Unable to issue the token. Check the credentials."
       );
     }
   };
@@ -289,18 +348,18 @@ export default function AnalyticsDashboard() {
         x: {
           field: "label",
           type: "nominal",
-          title: "الحالة الشعورية",
+          title: "Sentiment state",
         },
         y: {
           field: "count",
           type: "quantitative",
-          title: "عدد العبارات",
+          title: "Utterance count",
         },
         color: {
           field: "label",
           type: "nominal",
           scale: {
-            domain: ["رضا", "قلق", "غضب"],
+            domain: ["Satisfied", "Concerned", "Angry"],
             range: ["#0d9c53", "#f4b740", "#ff4600"],
           },
           legend: null,
@@ -332,7 +391,7 @@ export default function AnalyticsDashboard() {
   if (isLoading) {
     return (
       <section className="analytics-dashboard loading">
-        <span>جارٍ تحميل التحليلات...</span>
+        <span>Loading analytics...</span>
       </section>
     );
   }
@@ -350,14 +409,15 @@ export default function AnalyticsDashboard() {
     }
 
   const totals = report.totals;
+  const serviceMetrics = report.serviceMetrics;
 
   return (
     <section className="analytics-dashboard">
       <header className="analytics-dashboard__header">
         <div>
-          <h2>لوحة تحليلات eDentist.AI</h2>
+          <h2>eDentist.AI Analytics Dashboard</h2>
           <span className="analytics-dashboard__subtitle">
-            آخر تحديث:{" "}
+            Last updated:{" "}
             {new Date(report.generatedAt).toLocaleTimeString(undefined, {
               hour: "2-digit",
               minute: "2-digit",
@@ -368,18 +428,18 @@ export default function AnalyticsDashboard() {
       </header>
 
       <section className="panel security-panel">
-        <h3>الوصول الآمن</h3>
+        <h3>Secure access</h3>
         <div className="token-actions">
           <div className="token-manual">
-            <label htmlFor="tokenInput">رمز JWT</label>
+            <label htmlFor="tokenInput">JWT token</label>
             <textarea
               id="tokenInput"
               value={tokenInput}
               onChange={(event) => setTokenInput(event.target.value)}
-              placeholder="انسخ رمز المصادقة هنا..."
+              placeholder="Paste the authentication token here..."
             />
             <button type="button" onClick={handleTokenSave}>
-              حفظ الرمز
+              Save token
             </button>
           </div>
           <div className="token-request">
@@ -388,7 +448,7 @@ export default function AnalyticsDashboard() {
               id="clientId"
               value={clientId}
               onChange={(event) => setClientId(event.target.value)}
-              placeholder="مثال: ed-admin"
+              placeholder="e.g. ed-admin"
               autoComplete="off"
             />
             <label htmlFor="clientSecret">Client Secret</label>
@@ -412,7 +472,7 @@ export default function AnalyticsDashboard() {
               onClick={handleTokenRequest}
               disabled={authState === "pending"}
             >
-              {authState === "pending" ? "جارٍ الإصدار..." : "إصدار رمز جديد"}
+              {authState === "pending" ? "Issuing..." : "Issue new token"}
             </button>
           </div>
         </div>
@@ -427,45 +487,112 @@ export default function AnalyticsDashboard() {
 
       <div className="analytics-dashboard__summary-grid">
         <article className="summary-card">
-          <h3>إجمالي المكالمات</h3>
+          <h3>Total calls</h3>
           <p className="summary-card__primary">
             {totals.totalCalls}
-            <small> ({totals.activeCalls} نشطة)</small>
+            <small> ({totals.activeCalls} active)</small>
           </p>
           <span className="summary-card__meta">
-            {totals.completedCalls} مكالمة منتهية
+            {totals.completedCalls} completed calls
           </span>
         </article>
         <article className="summary-card">
-          <h3>نسبة النجاح</h3>
+          <h3>Success rate</h3>
           <p className="summary-card__primary">{totals.successRate}%</p>
           <span className="summary-card__meta">
-            {totals.successfulCalls} مكالمات ناجحة · {totals.failedCalls} لم تكتمل
+            {totals.successfulCalls} successful · {totals.failedCalls} incomplete
           </span>
         </article>
         <article className="summary-card">
-          <h3>متوسط الاستجابة</h3>
+          <h3>Average response</h3>
           <p className="summary-card__primary">
             {formatMs(totals.averageResponseMs)}
           </p>
           <span className="summary-card__meta">
-            زمن من المستخدم إلى الرد
+            User-to-response latency
           </span>
         </article>
         <article className="summary-card warning">
-          <h3>نسبة الهلوسة المحتملة</h3>
+          <h3>Potential hallucination rate</h3>
           <p className="summary-card__primary">
             {totals.hallucinationRate}%
           </p>
           <span className="summary-card__meta">
-            محسوبة على {totals.totalCalls} محادثة
+            Calculated over {totals.totalCalls} conversations
           </span>
         </article>
       </div>
 
       <div className="analytics-dashboard__content">
+        {serviceMetrics ? (
+          <section className="panel service-metrics">
+            <h3>Service health (last {formatWindow(serviceMetrics.windowMs)})</h3>
+            <div className="service-metrics__summary">
+              <div>
+                <strong>Requests:</strong>{" "}
+                {serviceMetrics.windowRequestCount} (total {serviceMetrics.totalRequests})
+              </div>
+              <div>
+                <strong>Success rate:</strong>{" "}
+                {serviceMetrics.successRate}%
+              </div>
+              <div>
+                <strong>Availability:</strong>{" "}
+                {serviceMetrics.availability}%
+              </div>
+              <div>
+                <strong>Avg latency:</strong>{" "}
+                {formatMs(serviceMetrics.averageLatencyMs)}
+              </div>
+              <div>
+                <strong>P95 latency:</strong>{" "}
+                {formatMs(serviceMetrics.p95LatencyMs)}
+              </div>
+              <div>
+                <strong>Last server error:</strong>{" "}
+                {formatRelativeTime(serviceMetrics.lastFailureAt)}
+              </div>
+            </div>
+            <div className="service-metrics__table-wrapper">
+              <table className="service-metrics__table">
+                <thead>
+                  <tr>
+                    <th>Endpoint</th>
+                    <th>Requests</th>
+                    <th>Success %</th>
+                    <th>Availability %</th>
+                    <th>Avg latency</th>
+                    <th>Max latency</th>
+                    <th>Min latency</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {serviceMetrics.perEndpoint.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="empty-state">
+                        No service telemetry collected yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    serviceMetrics.perEndpoint.slice(0, 8).map((endpoint) => (
+                      <tr key={endpoint.name}>
+                        <td>{endpoint.name}</td>
+                        <td>{endpoint.count}</td>
+                        <td>{endpoint.successRate}</td>
+                        <td>{endpoint.availability}</td>
+                        <td>{formatMs(endpoint.averageLatencyMs)}</td>
+                        <td>{formatMs(endpoint.maxLatencyMs)}</td>
+                        <td>{formatMs(endpoint.minLatencyMs)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
         <section className="panel sentiment-panel">
-          <h3>تحليل المشاعر الفوري</h3>
+          <h3>Real-time sentiment analysis</h3>
           <div className="chart" ref={chartRef} />
           <div className="legend">
             {report.sentimentDistribution.map((item) => (
@@ -478,35 +605,35 @@ export default function AnalyticsDashboard() {
         </section>
 
         <section className="panel sessions-panel">
-          <h3>المكالمات الأخيرة</h3>
+          <h3>Recent calls</h3>
           <div className="sessions-list">
             {report.recentSessions.length === 0 && (
-              <p className="empty-state">لا توجد مكالمات مسجلة بعد.</p>
+              <p className="empty-state">No calls recorded yet.</p>
             )}
             {report.recentSessions.map((session) => (
               <article className="session-card" key={session.sessionId}>
                 <header>
-                  <h4>جلسة {session.sessionId.slice(0, 8)}...</h4>
+                  <h4>Session {session.sessionId.slice(0, 8)}...</h4>
                   <span className={`status status--${session.status}`}>
                     {statusLabel(session)}
                   </span>
                 </header>
                 <ul>
                   <li>
-                    <strong>الاستجابة:</strong>{" "}
+                    <strong>Response time:</strong>{" "}
                     {formatMs(session.averageResponseMs)}
                   </li>
                   <li>
-                    <strong>المشاعر الغالبة:</strong>{" "}
+                    <strong>Dominant sentiment:</strong>{" "}
                     {sentimentTranslations[session.dominantSentiment]}
                   </li>
                   <li>
-                    <strong>الهلوسات:</strong> {session.hallucinations}
+                    <strong>Hallucinations:</strong> {session.hallucinations}
                   </li>
                 </ul>
                 <footer>
                   <span>
-                    آخر تحديث{" "}
+                    Last updated{" "}
                     {new Date(session.lastUpdate).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -524,9 +651,9 @@ export default function AnalyticsDashboard() {
         </section>
 
         <section className="panel timeline-panel">
-          <h3>آخر جلسة</h3>
+          <h3>Latest session</h3>
           {!report.latestTimeline && (
-            <p className="empty-state">لم تبدأ أي جلسة حتى الآن.</p>
+            <p className="empty-state">No session has started yet.</p>
           )}
           {report.latestTimeline && (
             <ol className="timeline">
@@ -540,7 +667,7 @@ export default function AnalyticsDashboard() {
                     })}
                   </span>
                   <span className="timeline__role">
-                    {turn.role === "user" ? "المستخدم" : "المساعد"}
+                    {turn.role === "user" ? "User" : "Assistant"}
                   </span>
                   <p className="timeline__text">{turn.text}</p>
                 </li>
@@ -550,7 +677,7 @@ export default function AnalyticsDashboard() {
         </section>
 
         <section className="panel export-panel">
-          <h3>إرسال التقارير إلى نظام خارجي</h3>
+          <h3>Send reports to an external system</h3>
           {providersError && (
             <p className="empty-state">{providersError}</p>
           )}
@@ -563,7 +690,7 @@ export default function AnalyticsDashboard() {
                     setSelectedProvider(event.target.value as PMSProvider | "")
                   }
                 >
-                  <option value="">اختر موفر التكامل</option>
+                  <option value="">Select an integration provider</option>
                   {providers.map((provider) => (
                     <option
                       key={provider.id}
@@ -571,7 +698,7 @@ export default function AnalyticsDashboard() {
                       disabled={!provider.configured}
                     >
                       {provider.label}
-                      {!provider.configured ? " (غير مهيأ)" : ""}
+                      {!provider.configured ? " (not configured)" : ""}
                     </option>
                   ))}
                 </select>
@@ -582,7 +709,7 @@ export default function AnalyticsDashboard() {
                   }
                   onClick={handleExport}
                 >
-                  {exportState === "pending" ? "جاري الإرسال..." : "أرسل الآن"}
+                  {exportState === "pending" ? "Sending..." : "Send now"}
                 </button>
               </div>
               {exportMessage && (

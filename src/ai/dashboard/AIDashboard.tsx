@@ -59,7 +59,7 @@ type MetricCard = {
 const VOICE_OPTIONS = [
   {
     id: "ar_friendly_female",
-    label: "صوت عربي أنثوي (ودود)",
+    label: "Friendly Arabic Female Voice",
     voiceName: "Farah",
     locale: "ar",
   },
@@ -72,10 +72,10 @@ const VOICE_OPTIONS = [
 ];
 
 const PLAYGROUND_SCRIPTS = [
-  "مرحباً بكم في عيادة eDentist، كيف يمكنني مساعدتك اليوم؟",
-  "هل ترغب بتأكيد موعدك أو حجز موعد جديد؟",
-  "تذكير: لديك موعد تنظيف الأسنان غداً الساعة 6 مساءً.",
-  "شكراً لزيارتك، نتمنى لك يوماً سعيداً!",
+  "Welcome to eDentist Clinic. How can I help you today?",
+  "Would you like to confirm your appointment or schedule a new one?",
+  "Reminder: you have a dental cleaning tomorrow at 6 PM.",
+  "Thank you for calling eDentist. Have a great day!",
 ];
 
 const TOKEN_EVENT = "ed-auth-token-changed";
@@ -109,7 +109,7 @@ export default function AIDashboard() {
   const fetchReport = useCallback(async () => {
     const token = getAuthToken();
     if (!token) {
-      setError("يتطلب الوصول إلى لوحة المراقبة توفير رمز JWT صالح.");
+      setError("The dashboard requires a valid JWT token.");
       setReport(null);
       setIsLoading(false);
       return;
@@ -133,7 +133,7 @@ export default function AIDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "تعذر تحديث لوحة التحكم التقنية حالياً."
+          : "Unable to refresh the operations dashboard right now."
       );
     } finally {
       setIsLoading(false);
@@ -167,7 +167,7 @@ export default function AIDashboard() {
         id: "accuracy",
         label: "Model Accuracy",
         value: `${accuracyValue.toFixed(1)}%`,
-        helper: `من أصل ${totals.totalCalls} مكالمة`,
+        helper: `Out of ${totals.totalCalls} calls`,
       },
       {
         id: "latency",
@@ -175,7 +175,7 @@ export default function AIDashboard() {
         value: `${Math.round(
           metricSource.latencyMs ?? totals.averageResponseMs
         )} ms`,
-        helper: "زمن الاستجابة من المستخدم إلى الرد",
+        helper: "User-to-response latency",
       },
       {
         id: "hallucination",
@@ -183,7 +183,7 @@ export default function AIDashboard() {
         value: `${(
           metricSource.hallucinationRate ?? totals.hallucinationRate
         ).toFixed(1)}%`,
-        helper: "نسبة الردود المحتمل أنها خاطئة",
+        helper: "Share of potentially incorrect responses",
       },
     ];
   }, [report]);
@@ -222,7 +222,7 @@ export default function AIDashboard() {
       },
     };
     setConfig(nextConfig);
-    setVoiceMessage(`تم تعيين الصوت إلى ${value}.`);
+    setVoiceMessage(`Voice switched to ${value}.`);
   };
 
   const handleConnect = async () => {
@@ -230,12 +230,12 @@ export default function AIDashboard() {
     setVoiceMessage(null);
     try {
       await connect();
-      setVoiceMessage("تم الاتصال بمحرك الصوت.");
+      setVoiceMessage("Connected to the voice engine.");
     } catch (error) {
       setVoiceMessage(
         error instanceof Error
           ? error.message
-          : "تعذر الاتصال بمحرك الصوت."
+          : "Unable to connect to the voice engine."
       );
     } finally {
       setVoiceBusy(false);
@@ -247,12 +247,12 @@ export default function AIDashboard() {
     setVoiceMessage(null);
     try {
       await disconnect();
-      setVoiceMessage("تم إنهاء الاتصال الصوتي.");
+      setVoiceMessage("Voice engine disconnected.");
     } catch (error) {
       setVoiceMessage(
         error instanceof Error
           ? error.message
-          : "تعذر إيقاف الاتصال الصوتي."
+          : "Unable to stop the voice engine."
       );
     } finally {
       setVoiceBusy(false);
@@ -262,7 +262,7 @@ export default function AIDashboard() {
   if (isLoading) {
     return (
       <section className="ai-dashboard loading">
-        <span>جارٍ تحميل لوحة التحكم التقنية...</span>
+        <span>Loading operations dashboard...</span>
       </section>
     );
   }
@@ -282,9 +282,9 @@ export default function AIDashboard() {
   return (
     <section className="ai-dashboard">
       <header className="ai-dashboard__header">
-        <h2>لوحة فريق الذكاء الاصطناعي</h2>
+        <h2>AI Operations Dashboard</h2>
         <span className={connected ? "status connected" : "status"}>
-          {connected ? "متصل بمحرك الصوت" : "غير متصل"}
+          {connected ? "Connected to voice engine" : "Disconnected"}
         </span>
       </header>
 
@@ -301,31 +301,31 @@ export default function AIDashboard() {
       <div className="ai-dashboard__grid">
         <section className="panel active-sessions">
           <div className="panel__header">
-            <h3>الجلسات النشطة</h3>
-            <span>{activeSessions.length} جلسة</span>
+            <h3>Active sessions</h3>
+            <span>{activeSessions.length} session(s)</span>
           </div>
           {activeSessions.length === 0 ? (
-            <p className="empty-state">لا توجد جلسات نشطة حالياً.</p>
+            <p className="empty-state">No active sessions at the moment.</p>
           ) : (
             <ul>
               {activeSessions.map((session) => (
                 <li key={session.sessionId}>
                   <header>
-                    <strong>جلسة {session.sessionId.slice(0, 6)}...</strong>
+                    <strong>Session {session.sessionId.slice(0, 6)}...</strong>
                     <span className="intent">
                       {session.currentIntent ?? "UNKNOWN"}
                     </span>
                   </header>
                   <div className="details">
                     <span>
-                      بدء:{" "}
+                      Started:{" "}
                       {new Date(session.startedAt).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </span>
                     <span>
-                      آخر تحديث:{" "}
+                      Last update:{" "}
                       {new Date(session.lastUpdate).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -337,17 +337,17 @@ export default function AIDashboard() {
                     <p className="last-message">
                       <strong>
                         {session.lastMessage.role === "assistant"
-                          ? "المساعد"
-                          : "المستخدم"}
+                          ? "Assistant"
+                          : "User"}
                         :
                       </strong>{" "}
                       {session.lastMessage.text}
                     </p>
                   )}
                   <footer>
-                    <span>🎯 {session.dominantSentiment ?? "غير محدد"}</span>
-                    <span>🤖 {session.assistantTurns ?? 0} ردود</span>
-                    <span>❗ {session.hallucinations ?? 0} ملاحظات</span>
+                    <span>🎯 {session.dominantSentiment ?? "Not set"}</span>
+                    <span>🤖 {session.assistantTurns ?? 0} replies</span>
+                    <span>❗ {session.hallucinations ?? 0} flags</span>
                   </footer>
                 </li>
               ))}
@@ -356,8 +356,8 @@ export default function AIDashboard() {
         </section>
 
         <section className="panel voice-control">
-          <h3>إدارة النماذج الصوتية</h3>
-          <label htmlFor="voice-select">الصوت الحالي</label>
+          <h3>Voice model management</h3>
+          <label htmlFor="voice-select">Current voice</label>
           <select
             id="voice-select"
             value={voiceName}
@@ -376,19 +376,19 @@ export default function AIDashboard() {
               onClick={handleConnect}
               disabled={voiceBusy || connected}
             >
-              {voiceBusy && !connected ? "جارٍ الاتصال..." : "اتصال"}
+              {voiceBusy && !connected ? "Connecting..." : "Connect"}
             </button>
             <button
               type="button"
               onClick={handleDisconnect}
               disabled={voiceBusy || !connected}
             >
-              {voiceBusy && connected ? "جارٍ الإيقاف..." : "إيقاف"}
+              {voiceBusy && connected ? "Stopping..." : "Disconnect"}
             </button>
           </div>
 
           <div className="volume-indicator">
-            <span>مؤشر الصوت</span>
+            <span>Volume indicator</span>
             <div className="bar">
               <div className="fill" style={{ width: `${volumePercent}%` }} />
             </div>
@@ -411,13 +411,13 @@ export default function AIDashboard() {
             <button
               type="button"
               onClick={() => {
-                setVoiceMessage(`تشغيل عينة: "${voicePreviewScript}"`);
+                setVoiceMessage(`Playing sample: "${voicePreviewScript}"`);
               }}
             >
-              تشغيل العينة
+              Play sample
             </button>
             <p className="voice-hint">
-              معدل النطق مضبوط على 0.95 لتقديم تجربة قريبة من الأسلوب الطبيعي.
+              Speaking rate is fixed at 0.95 to keep responses natural.
             </p>
           </div>
 
@@ -425,18 +425,18 @@ export default function AIDashboard() {
         </section>
 
         <section className="panel recent-conversations">
-          <h3>آخر الجلسات</h3>
+          <h3>Recent sessions</h3>
           {recentSessions.length === 0 ? (
-            <p className="empty-state">لا توجد جلسات مسجلة.</p>
+            <p className="empty-state">No sessions recorded.</p>
           ) : (
             <table>
               <thead>
                 <tr>
-                  <th>الجلسة</th>
-                  <th>الحالة</th>
-                  <th>المشاعر</th>
-                  <th>الاستجابة</th>
-                  <th>آخر تحديث</th>
+                  <th>Session</th>
+                  <th>Status</th>
+                  <th>Sentiment</th>
+                  <th>Response</th>
+                  <th>Last update</th>
                 </tr>
               </thead>
               <tbody>

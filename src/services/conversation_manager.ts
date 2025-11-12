@@ -27,6 +27,10 @@ import {
   getAvailableDoctors,
   fetchClinicContent,
 } from "../../server/dbBookingIntegration";
+import {
+  detectPreferredLanguage,
+  joinByLanguage,
+} from "../utils/language";
 
 export type Intent =
   | "BOOK_APPOINTMENT"
@@ -272,8 +276,8 @@ Respond in Arabic or English matching the user's language, with a friendly and p
     const lastUserMessage =
       [...this.state.turns].reverse().find((turn) => turn.role === "user")
         ?.text ?? "";
-    const prefersArabic = /[\u0600-\u06FF]/.test(lastUserMessage);
-    const language: "ar" | "en" = prefersArabic ? "ar" : "en";
+    const language = detectPreferredLanguage(lastUserMessage);
+    const prefersArabic = language === "ar";
 
     const doctorName = this.state.entities.doctor_name;
     const clinicBranch = this.state.entities.clinic_branch;
@@ -326,7 +330,7 @@ Respond in Arabic or English matching the user's language, with a friendly and p
           params.appointmentDate &&
           params.appointmentTime
             ? `تم حجز موعدك مع الدكتور ${params.doctorName} في فرع ${params.clinicBranch} يوم ${params.appointmentDate} الساعة ${params.appointmentTime}.`
-            : "تم تسجيل طلبك، برجاء تزويدنا باسم الطبيب والفرع ووقت الموعد لتأكيد الحجز.",
+            : "تم تسجيل طلبك، تفضل بتزويدنا باسم الطبيب، الفرع ووقت الموعد لتأكيد الحجز.",
         en: (params) =>
           params.doctorName &&
           params.clinicBranch &&
@@ -337,12 +341,13 @@ Respond in Arabic or English matching the user's language, with a friendly and p
       },
       CANCEL_APPOINTMENT: {
         ar: () => "تم إلغاء الموعد بنجاح. نأمل نراك قريباً!",
-        en: () => "Your appointment has been cancelled successfully. We hope to see you soon!",
+        en: () =>
+          "Your appointment has been cancelled successfully. We hope to see you soon!",
       },
       RESCHEDULE_APPOINTMENT: {
         ar: (params) =>
           params.appointmentDate && params.appointmentTime
-            ? `تم تعديل موعدك ليكون يوم ${params.appointmentDate} الساعة ${params.appointmentTime}.`
+            ? `تم تعديل موعدك ليصبح يوم ${params.appointmentDate} الساعة ${params.appointmentTime}.`
             : "سأقوم بتعديل الموعد، هل يمكنك تحديد اليوم والوقت الجديدين؟",
         en: (params) =>
           params.appointmentDate && params.appointmentTime
@@ -351,21 +356,25 @@ Respond in Arabic or English matching the user's language, with a friendly and p
       },
       INQUIRY: {
         ar: () =>
-          "يسرّنا الرد على استفساراتك حول خدمات العيادة مثل التنظيف، التقويم، الزراعة أو التبييض. كيف يمكنني المساعدة؟",
+          "يسرّنا الرد على استفساراتك حول خدمات العيادة مثل التنظيف، التقويم، الزراعة أو التبييض. كيف يمكنني مساعدتك؟",
         en: () =>
           "I'm happy to help with any questions about our services such as cleaning, orthodontics, implants, or whitening. How can I assist you today?",
       },
       UNKNOWN: {
-        ar: () => "لم أفهم طلبك تماماً، هل يمكنك التوضيح أكثر أو تحديد الخدمة التي تحتاجها؟",
-        en: () => "I didn't fully catch that. Could you clarify what you need help with?",
+        ar: () =>
+          "لم أفهم طلبك تماماً، هل يمكنك التوضيح أكثر أو تحديد الخدمة التي تحتاجها؟",
+        en: () =>
+          "I didn't fully catch that. Could you clarify what you need help with?",
       },
       FOLLOW_UP: {
-        ar: () => "كيف تشعر بعد علاجك الأخير؟ هل ترغب بموعد متابعة؟",
-        en: () => "How are you feeling after your recent treatment? Would you like to schedule a follow-up visit?",
+        ar: () =>
+          "كيف تشعر بعد علاجك الأخير؟ هل ترغب بموعد متابعة؟",
+        en: () =>
+          "How are you feeling after your recent treatment? Would you like to schedule a follow-up visit?",
       },
       ORTHODONTICS_INQUIRY: {
         ar: () =>
-          "العلاج التقويمي يحتاج تقييم أولي مع الطبيب المختص، هل ترغب بتحديد موعد فحص؟",
+          "العلاج التقويمي يحتاج تقييماً أولياً مع الطبيب المختص، هل ترغب بتحديد موعد فحص؟",
         en: () =>
           "Orthodontic treatment requires an initial assessment with a specialist. Would you like me to schedule a consultation?",
       },
@@ -385,10 +394,7 @@ Respond in Arabic or English matching the user's language, with a friendly and p
     let handled = false;
     let replyKey: string | null = null;
 
-    const missingFieldLabels: Record<
-      string,
-      { ar: string; en: string }
-    > = {
+    const missingFieldLabels: Record<string, { ar: string; en: string }> = {
       doctorName: { ar: "اسم الطبيب", en: "doctor's name" },
       clinicBranch: { ar: "فرع العيادة", en: "clinic branch" },
       appointmentDate: { ar: "تاريخ الموعد", en: "appointment date" },
@@ -463,9 +469,7 @@ Respond in Arabic or English matching the user's language, with a friendly and p
         if (!names.length) {
           return baseReply;
         }
-        const joined = prefersArabic
-          ? names.join("، ")
-          : names.join(", ");
+        const joined = prefersArabic ? names.join("، ") : names.join(", ");
         const suggestion = prefersArabic
           ? ` الأطباء المتاحون في ${clinicBranch} يوم ${appointmentDate}: ${joined}.`
           : ` Available doctors at ${clinicBranch} on ${appointmentDate}: ${joined}.`;
@@ -477,7 +481,7 @@ Respond in Arabic or English matching the user's language, with a friendly and p
     };
 
     const followUpRequested =
-      /متابعة|متابعه|بعد العلاج|hygiene|follow[-\s]?up|check/i.test(
+      /(متابعة|متابعه|بعد العلاج|hygiene|follow[-\s]?up|check)/i.test(
         lastUserMessage
       ) ||
       (this.state.entities.notes ?? "")
@@ -486,13 +490,11 @@ Respond in Arabic or English matching the user's language, with a friendly and p
     if (this.state.currentIntent === "BOOK_APPOINTMENT") {
       const { missing } = ensureBookingEntities();
       if (missing.length) {
-        templateParams.missing_fields =
-          language === "ar"
-            ? missing.join("، ")
-            : missing.join(", ");
+        const joined = joinByLanguage(language, missing);
+        templateParams.missing_fields = joined;
         reply = prefersArabic
-          ? `لإتمام الحجز أحتاج إلى: ${missing.join("، ")}.`
-          : `To finish the booking I still need: ${missing.join(", ")}.`;
+          ? `لإتمام الحجز أحتاج إلى: ${joined}.`
+          : `To finish the booking I still need: ${joined}.`;
         handled = true;
         replyKey = "booking.missing_fields";
       } else {
@@ -508,9 +510,7 @@ Respond in Arabic or English matching the user's language, with a friendly and p
           });
 
           if (bookingResult.success) {
-            reply = prefersArabic
-              ? `تم حجز موعدك مع الدكتور ${doctorName} في فرع ${clinicBranch} يوم ${appointmentDate} الساعة ${appointmentTime}.`
-              : `Your appointment with Dr. ${doctorName} at ${clinicBranch} is booked for ${appointmentDate} at ${appointmentTime}.`;
+            reply = replyTemplates.BOOK_APPOINTMENT[language](replyParams);
             replyKey = templateKeys.BOOK_APPOINTMENT ?? "booking.confirmed";
             if (
               bookingResult.booking &&
@@ -523,11 +523,17 @@ Respond in Arabic or English matching the user's language, with a friendly and p
             }
           } else {
             templateParams.reason = bookingResult.reason ?? "";
-            reply = prefersArabic
-              ? bookingResult.message
-              : bookingResult.reason === "ALREADY_BOOKED"
-              ? `Dr. ${doctorName} is not available at ${appointmentTime}. Would you like me to suggest another slot?`
-              : "I couldn't confirm that booking. Could you provide another time or doctor?";
+            if (bookingResult.reason === "ALREADY_BOOKED") {
+              const doctorLabel = doctorName ?? (prefersArabic ? "الطبيب المطلوب" : "the requested doctor");
+              const timeLabel = appointmentTime ?? (prefersArabic ? "الوقت المطلوب" : "the requested time");
+              reply = prefersArabic
+                ? `الدكتور ${doctorLabel} غير متاح في ${timeLabel}. هل ترغب باقتراح موعد آخر؟`
+                : `Dr. ${doctorLabel} is not available at ${timeLabel}. Would you like me to suggest another slot?`;
+            } else if (prefersArabic) {
+              reply = bookingResult.message;
+            } else {
+              reply = "I couldn't confirm that booking. Could you provide another time or doctor?";
+            }
             const reasonKeyMap: Record<string, string> = {
               DOCTOR_NOT_FOUND: "booking.failure_doctor_not_found",
               DOCTOR_NOT_AVAILABLE_DAY: "booking.failure_not_available_day",
@@ -553,10 +559,7 @@ Respond in Arabic or English matching the user's language, with a friendly and p
     } else if (this.state.currentIntent === "CANCEL_APPOINTMENT") {
       const bookingId = ensureBookingId();
       if (!bookingId) {
-        const missingLabel =
-          language === "ar"
-            ? missingFieldLabels.bookingId.ar
-            : missingFieldLabels.bookingId.en;
+        const missingLabel = missingFieldLabels.bookingId[language];
         templateParams.missing_fields = missingLabel;
         reply = prefersArabic
           ? `لإلغاء الموعد أحتاج إلى ${missingLabel}.`
@@ -579,10 +582,7 @@ Respond in Arabic or English matching the user's language, with a friendly and p
     } else if (this.state.currentIntent === "RESCHEDULE_APPOINTMENT") {
       const bookingId = ensureBookingId();
       if (!bookingId) {
-        const missingLabel =
-          language === "ar"
-            ? missingFieldLabels.bookingId.ar
-            : missingFieldLabels.bookingId.en;
+        const missingLabel = missingFieldLabels.bookingId[language];
         templateParams.missing_fields = missingLabel;
         reply = prefersArabic
           ? `لتعديل الموعد أحتاج إلى ${missingLabel}.`
@@ -591,13 +591,11 @@ Respond in Arabic or English matching the user's language, with a friendly and p
       } else {
         const { missing } = ensureRescheduleEntities();
         if (missing.length) {
-          templateParams.missing_fields =
-            language === "ar"
-              ? missing.join("، ")
-              : missing.join(", ");
+          const joined = joinByLanguage(language, missing);
+          templateParams.missing_fields = joined;
           reply = prefersArabic
-            ? `لتحديث الموعد أحتاج إلى: ${missing.join("، ")}.`
-            : `To update the appointment I still need: ${missing.join(", ")}.`;
+            ? `لتحديث الموعد أحتاج إلى: ${joined}.`
+            : `To update the appointment I still need: ${joined}.`;
           replyKey = "booking.missing_fields";
         } else {
           const result = await updateBookingViaDB(bookingId, {
