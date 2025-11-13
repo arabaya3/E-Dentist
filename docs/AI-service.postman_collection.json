@@ -1,0 +1,211 @@
+{
+  "info": {
+    "name": "eDentist AI Service",
+    "_postman_id": "8c5e2b24-6c78-4b6d-bdff-a412de997002",
+    "description": "Minimal collection covering analytics and PMS endpoints after removing JWT authentication.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Analytics | Ingest Event",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"turn\",\n  \"sessionId\": \"demo-session-123\",\n  \"role\": \"user\",\n  \"text\": \"I need to book a cleaning tomorrow afternoon\",\n  \"timestamp\": {{now}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/analytics/events",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "analytics",
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Analytics | Get Report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/analytics/report",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "analytics",
+            "report"
+          ]
+        }
+      }
+    },
+    {
+      "name": "PMS | List Providers",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/integrations/pms/providers",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "integrations",
+            "pms",
+            "providers"
+          ]
+        }
+      }
+    },
+    {
+      "name": "PMS | Book Appointment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"patient\": {\n    \"firstName\": \"Ahmad\",\n    \"lastName\": \"Hassan\",\n    \"phone\": \"+962700000000\"\n  },\n  \"service\": \"cleaning\",\n  \"startTime\": \"2025-11-15T14:30:00Z\",\n  \"notes\": \"prefers Arabic\",\n  \"metadata\": {\n    \"sessionId\": \"demo-session-123\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/integrations/pms/{{provider}}/book",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "integrations",
+            "pms",
+            "{{provider}}",
+            "book"
+          ]
+        }
+      }
+    },
+    {
+      "name": "PMS | Update Booking",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"startTime\": \"2025-11-16T16:00:00Z\",\n  \"notes\": \"Rescheduled by patient\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/integrations/pms/{{provider}}/booking/{{bookingId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "integrations",
+            "pms",
+            "{{provider}}",
+            "booking",
+            "{{bookingId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "PMS | Cancel Booking",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"Patient requested cancellation\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/integrations/pms/{{provider}}/booking/{{bookingId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "integrations",
+            "pms",
+            "{{provider}}",
+            "booking",
+            "{{bookingId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "PMS | Push Performance",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"report\": {\n    \"generatedAt\": {{now}},\n    \"totals\": {\n      \"totalCalls\": 12,\n      \"successRate\": 83.3\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/integrations/pms/{{provider}}/performance",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "integrations",
+            "pms",
+            "{{provider}}",
+            "performance"
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:3000"
+    },
+    {
+      "key": "provider",
+      "value": "mockPMS"
+    },
+    {
+      "key": "bookingId",
+      "value": "123456"
+    },
+    {
+      "key": "now",
+      "value": "{{$timestamp}}"
+    }
+  ]
+}
+

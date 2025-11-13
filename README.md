@@ -1,26 +1,26 @@
-# eDentist.AI – مساعد العيادات السنيّة
+# eDentist.AI – Dental Clinic Assistant
 
-منصة محادثة صوتية/نصية ثنائية اللغة (عربي/إنجليزي) تساعد المرضى على حجز المواعيد، تعديلها أو إلغائها، والاطلاع على معلومات الخدمات الطبية. تعتمد المنظومة على Gemini Live API، Prisma، وقاعدة بيانات PostgreSQL مع تكاملات اختيارية مع أنظمة الـPMS/CRM.
+A bilingual (Arabic/English) voice and text console that helps patients book, modify, or cancel appointments and browse clinic services. The stack combines the Gemini Live API, Prisma, PostgreSQL, and optional PMS/CRM integrations.
 
-> **تنبيه:** بُني المشروع على فرع `V4_Ayed`. تأكد من استنساخه أو سحب هذا الفرع قبل التشغيل.
+> **Heads-up:** Development happens on the `V4_Ayed` branch. Clone or pull that branch before running the project.
 
 ---
 
-## المتطلبات المسبقة
+## Prerequisites
 
-| المكون | الإصدار الموصى به |
-|--------|-------------------|
-| Node.js | ≥ 18.x |
-| npm     | يأتي مع Node.js |
+| Component | Recommended Version |
+|-----------|---------------------|
+| Node.js   | ≥ 18.x |
+| npm       | Bundled with Node.js |
 | PostgreSQL | ≥ 14 |
-| حساب Google Gemini API | مفتاح فعّال |
-| (اختياري) تكامل PMS/CRM | مفاتيح GoHighLevel أو Salesforce أو HubSpot |
+| Google Gemini API account | Active key |
+| PMS/CRM integration (optional) | GoHighLevel, Salesforce, or HubSpot credentials |
 
-تأكد أيضًا من تثبيت `git`, ويفضَّل إعداد `psql` للعمل مع قاعدة البيانات.
+Install `git`, and set up `psql` if you prefer working with the CLI.
 
 ---
 
-## 1. استنساخ المشروع وتجهيز الفرع
+## 1. Clone the repository
 
 ```bash
 git clone https://github.com/Moh-abufurha/E-Dentist.git
@@ -30,12 +30,12 @@ git checkout V4_Ayed
 
 ---
 
-## 2. إعداد متغيرات البيئة
+## 2. Configure environment variables
 
-أنشئ ملف `.env` في جذر المشروع (لا يُرفع إلى Git). القيم التالية نموذج يوضح أهم المفاتيح:
+Create a `.env` file in the project root (do not commit it). Use the following template as a starting point:
 
 ```bash
-# مفاتيح Gemini (مكررة مع React لأن الواجهة تبنى في المتصفح)
+# Gemini API keys (duplicated for React because requests originate from the browser)
 GEMINI_API_KEY=your_server_side_key
 REACT_APP_GEMINI_API_KEY=your_browser_key
 
@@ -50,51 +50,51 @@ REACT_APP_LIVE_MODEL=models/gemini-2.0-flash-exp
 API_URL=https://generativelanguage.googleapis.com/v1beta/models
 REACT_APP_API_URL=https://generativelanguage.googleapis.com/v1beta/models
 
-# سلسلة الاتصال بقاعدة البيانات (عدّل البيانات لتناسب إعدادك)
+# Database connection string (update to match your setup)
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edentist?schema=public"
+```
 
-
-> راجع `docs/pms-integration.md`, `docs/voice-engine.md`, و `docs/security.md` لمزيد من التفاصيل حول المفاتيح وحماية البيانات.
+> See `docs/pms-integration.md`, `docs/voice-engine.md`, and `docs/security.md` for provider keys and data-protection guidance.
 
 ---
 
-## 3. تثبيت الحزم
+## 3. Install dependencies
 
 ```bash
 npm install
 ```
 
-> في الأنظمة التي تتطلب شهادات HTTPS محلية (مثل Windows)، استخدم `npm run start-https` لاحقًا لتشغيل CRA بنمط HTTPS.
+> On platforms that require local HTTPS certificates (e.g., Windows), plan to run `npm run start-https` to launch CRA with HTTPS.
 
 ---
 
-## 4. تجهيز قاعدة البيانات PostgreSQL
+## 4. Prepare the PostgreSQL database
 
-1. **إنشاء قاعدة بيانات فارغة** (مرة واحدة):
+1. **Create an empty database** (one-time):
    ```bash
    createdb edentist
    ```
-   أو عبر PgAdmin/واجهة أخرى.
+   or use PgAdmin / any GUI.
 
-2. **تشغيل مخططات Prisma**:
+2. **Apply Prisma migrations**:
    ```bash
    npx prisma generate
    npx prisma migrate deploy
-   # أو في بيئة تطوير جديدة:
+   # or, for a fresh development environment:
    # npx prisma migrate dev --name init
    ```
 
-3. **إدخال بيانات أولية** (أطباء + قوالب ردود). افتح `psql`:
+3. **Seed initial data** (doctors + message templates). Open `psql`:
    ```bash
    psql postgresql://postgres:postgres@localhost:5432/edentist
    ```
 
-   ثم شغّل الأوامر التالية أو عدلها حسب احتياجاتك:
+   Run or adapt the following inserts:
    ```sql
    INSERT INTO doctors (name, specialty, branch, work_start, work_end, available_days)
    VALUES
-     ('Dr. Ayed Al-Harbi', 'تقويم الأسنان', 'Riyadh - Olaya', '09:00', '17:00', ARRAY['Sunday','Monday','Tuesday','Wednesday','Thursday']),
-     ('Dr. Lina Samir', 'تبييض الأسنان', 'Riyadh - Malqa', '12:00', '20:00', ARRAY['Sunday','Monday','Tuesday','Wednesday','Thursday']);
+     ('Dr. Ayed Al-Harbi', 'Orthodontics', 'Riyadh - Olaya', '09:00', '17:00', ARRAY['Sunday','Monday','Tuesday','Wednesday','Thursday']),
+     ('Dr. Lina Samir', 'Teeth Whitening', 'Riyadh - Malqa', '12:00', '20:00', ARRAY['Sunday','Monday','Tuesday','Wednesday','Thursday']);
 
    INSERT INTO clinic_content (slug, locale, content, tags)
    VALUES
@@ -110,88 +110,90 @@ npm install
      ('inquiry.general', 'en', 'I’m happy to help with questions about cleaning, orthodontics, implants, or whitening. How can I assist you today?', ARRAY['inquiry']);
    ```
 
-   يمكنك إضافة المزيد من الأطباء أو المحتوى بنفس البنية متى احتجت.
+   Extend the dataset with additional doctors or templates whenever needed.
 
-4. **اختبر الجداول**:
+4. **Inspect tables**:
    ```bash
    npx prisma studio
    ```
-   افتح المتصفح على العنوان الذي يظهر للتأكد من البيانات.
+   Open the browser URL that Prisma Studio prints to verify your data.
 
 ---
 
-## 5. تشغيل النظام محليًا
+## 5. Run the stack locally
 
-1. **تشغيل واجهة التطوير (CRA + HTTPS)**:
+1. **Start the development UI (CRA + HTTPS)**:
    ```bash
    npm run start-https
    ```
-   - سيفتح المتصفح على `https://localhost:3000`.
-   - قم بالموافقة على الشهادة الذاتية لمرة واحدة.
+   - The console opens at `https://localhost:3000`.
+   - Accept the self-signed certificate once.
 
-2. **الحوار الصوتي/النصي**:
-   - استخدم اللوحة الجانبية لإرسال رسائل نصية.
-   - يمكن تفعيل الميكروفون أو مشاركة الشاشة عبر أزرار `ControlTray`.
+2. **Use the voice/text console**:
+   - The side panel lets you send text messages.
+   - Enable microphone or screen capture through the `ControlTray`.
 
-3. **اختبارات صوتية سريعة** (اختياري):
+3. **Optional smoke tests**:
    ```bash
-   npm run test:audio         # إرسال ملف WAV قصير والحصول على رد مسموع
-   npm run test:voice-engine  # اختبار التحويلات الصوتية ثنائية اللغة
-   npm run demo:conversation  # سكربت محادثة نصية تجريبية (Node.js)
+   npm run test:audio         # Send a WAV sample and receive synthesized audio
+   npm run test:voice-engine  # Exercise bilingual speech transforms
+   npm run demo:conversation  # Run a scripted conversation in Node.js
    ```
 
-> جميع هذه الأوامر تعتمد على ضبط مفاتيح Gemini بشكل صحيح في `.env`.
+> All commands assume Gemini keys are configured correctly in `.env`.
 
 ---
 
-## 6. تكاملات الـPMS/CRM (اختياري)
+## 6. Optional PMS/CRM integrations
 
-- فعّل المتغيرات الخاصة بكل موفّر داخل `.env` كما هو موضح في `docs/pms-integration.md`.
-- نقاط النهاية المحلية متاحة عبر البروكسي (`/api/integrations/pms/...`) أثناء تشغيل CRA.
-- يمكن استخدام لوحة التحليلات لدفع تقارير الأداء مباشرة لأنظمة الطرف الثالث.
-
----
-
-## 7. بنية المجلدات المهمة
-
-| المسار | الوصف |
-|--------|-------|
-| `src/services/conversation_manager.ts` | منطق المحادثة وتدفق الحجوزات |
-| `server/dbBookingIntegration.ts` | عمليات Prisma المباشرة على جدول الحجوزات |
-| `docs/voice-engine.md` | إعداد مسارات STT/TTS |
-| `scripts/*` | سكربتات تشغيل واختبار سريعة |
-| `prisma/migrations` | تعريف مخطط قاعدة البيانات |
+- Enable provider-specific variables in `.env` as documented in `docs/pms-integration.md`.
+- While CRA is running, the proxy exposes endpoints under `/api/integrations/pms/...`.
+- The analytics dashboard can push performance reports directly to third-party systems.
 
 ---
 
-## 8. نشر النسخة أو مشاركة المشروع
+## 7. Key directories
 
-1. اضبط مفاتيح البيئة على الخادم (سواء باستخدام Docker أو خدمة CI/CD).
-2. شغّل `npm run build` للحصول على نسخة إنتاجية.
-3. قم بتشغيل الـ backend (إذا كنت ستفصل الكود إلى طبقة Node مستقلة) أو استخدم خدمات استضافة CRA.
-4. تأكد من إنشاء قاعدة بيانات Prod وتشغيل `npx prisma migrate deploy` عليها قبل نشر الواجهة.
+| Path | Description |
+|------|-------------|
+| `src/services/conversation_manager.ts` | Conversation logic and booking workflow |
+| `server/dbBookingIntegration.ts` | Direct Prisma operations for booking records |
+| `docs/voice-engine.md` | Speech-to-text / text-to-speech configuration |
+| `scripts/*` | Utility and smoke-test scripts |
+| `prisma/migrations` | Database schema definitions |
 
 ---
 
-## 9. الدعم والتوثيق الإضافي
+## 8. Deploy or share the project
 
-- **الأمان والالتزام**: راجع `docs/security.md`.
-- **طبقة الصوت**: راجع `docs/voice-engine.md`.
-- **التكاملات الخارجية**: راجع `docs/pms-integration.md`.
-- **البنية عالية التوافر**: راجع `docs/high-availability.md`.
-- **تشغيل الأعطال والفشل**: راجع `docs/runbooks/voice-agent-failover.md`.
-- **أدلة الالتزام HIPAA/SOC2**: راجع `docs/compliance-evidence.md`.
-- **اختبارات الأمان**: شغّل `npm test` لقراءة اختبارات Jest في `src/__tests__/security-sanitizer.test.ts`.
+1. Configure environment variables on the target host (Docker or your CI/CD platform).
+2. Build the frontend with `npm run build`.
+3. Run the Node backend (if splitting the code) or host the CRA build with your preferred provider.
+4. Provision the production database and execute `npx prisma migrate deploy` before serving the UI.
 
-لأي استفسار إضافي أو مساهمة، يرجى فتح تذكرة جديدة (Issue) داخل المستودع. بالتوفيق! 🎧🦷
 ---
 
-## Clinic content templates / ????? ???? ???????
+## 9. Additional references
 
-- ??? ????? ????? ???? `clinic_content` ???? ?? ?????? `20251112153000_create_clinic_content` ???? ???????? ???? ???? ?? ??? `ConversationManager` ?????? ???? ?????? ???????? ???????? ?????? ??? ?????? ??????.
-- ?????? ?? ?????? ??????? ???? ????? Prisma ??????? ??? ??? ?????????:
+- **Security & compliance**: `docs/security.md`
+- **Voice pipeline**: `docs/voice-engine.md`
+- **External integrations**: `docs/pms-integration.md`
+- **High availability**: `docs/high-availability.md`
+- **Incident response**: `docs/runbooks/voice-agent-failover.md`
+- **Compliance evidence**: `docs/compliance-evidence.md`
+- **Security tests**: `npm test` executes Jest suites, including `src/__tests__/security-sanitizer.test.ts`
+
+For questions or contributions, open an issue in the repository. Happy building! 🎧🦷
+
+---
+
+## Clinic content templates
+
+- The `clinic_content` table and the `20251112153000_create_clinic_content` migration hold the localized responses that `ConversationManager` renders.
+- Apply the latest migrations and optional seed data with Prisma:
   ```bash
   npx prisma migrate deploy
   npx prisma db seed
   ```
-- ???? ????? ??????? ??? ??? ??? `psql` ?? Prisma Studio ?????? ?? ????? ???? ????? ??? `slug` (??? `booking.confirmed`) ?????? (`ar` ?? `en`). ???? ?????? ???????? ??? `{{doctor_name}}`, `{{appointment_date}}`, ??????.
+- Manage the records with `psql` or Prisma Studio. Each row is keyed by `slug` (for example, `booking.confirmed`) and `locale` (`ar` or `en`). Templates accept placeholders such as `{{doctor_name}}`, `{{appointment_date}}`, and `{{missing_fields}}`.
+

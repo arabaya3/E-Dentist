@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import vegaEmbed, { type VisualizationSpec } from "vega-embed";
 import "./analytics-dashboard.scss";
 import {
@@ -7,11 +7,6 @@ import {
   type PMSProvider,
   type ProviderSummary,
 } from "../integrations";
-import {
-  getAuthToken,
-  setAuthToken,
-  requestAuthToken,
-} from "../security";
 
 type SentimentLabel = "satisfied" | "concerned" | "angry";
 
@@ -168,8 +163,6 @@ const statusLabel = (session: SessionSummary) => {
   return "Completed";
 };
 
-const TOKEN_EVENT = "ed-auth-token-changed";
-
 export default function AnalyticsDashboard() {
   const [report, setReport] = useState<PerformanceReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -182,31 +175,12 @@ export default function AnalyticsDashboard() {
     "idle" | "pending" | "done" | "failed"
   >("idle");
   const [exportMessage, setExportMessage] = useState<string | null>(null);
-  const [tokenInput, setTokenInput] = useState<string>(getAuthToken() ?? "");
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [scopeInput, setScopeInput] = useState(
-    "analytics:read,pms:read,pms:write"
-  );
-  const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [authState, setAuthState] = useState<
-    "idle" | "pending" | "success" | "error"
-  >("idle");
-  const [authVersion, setAuthVersion] = useState(0);
-
-  const fetchReport = async () => {
-    const token = getAuthToken();
-    if (!token) {
-      setError("Analytics access requires a valid JWT login.");
-      setIsLoading(false);
-      return;
-    }
+  const fetchReport = useCallback(async () => {
     try {
       const response = await fetch("/api/analytics/report", {
         method: "GET",
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${token}`,
         },
         cache: "no-store",
       });
@@ -225,7 +199,7 @@ export default function AnalyticsDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchReport();
@@ -233,20 +207,9 @@ export default function AnalyticsDashboard() {
     return () => {
       window.clearInterval(interval);
     };
-  }, [authVersion]);
+  }, [fetchReport]);
 
   useEffect(() => {
-    const handler = () => setAuthVersion((prev) => prev + 1);
-    window.addEventListener(TOKEN_EVENT, handler);
-    return () => window.removeEventListener(TOKEN_EVENT, handler);
-  }, []);
-
-  useEffect(() => {
-    const token = getAuthToken();
-    if (!token) {
-      setProvidersError("Please authenticate before viewing integration providers.");
-      return;
-    }
     listConfiguredProviders()
       .then((data) => {
         setProviders(data);
@@ -262,7 +225,7 @@ export default function AnalyticsDashboard() {
             : "Unable to load the available PMS/CRM systems."
         );
       });
-  }, [authVersion]);
+  }, []);
 
   const handleExport = async () => {
     if (!report || !selectedProvider) {
@@ -285,45 +248,6 @@ export default function AnalyticsDashboard() {
         err instanceof Error
           ? err.message
           : "Unable to send the report. Please try again later."
-      );
-    }
-  };
-
-  const handleTokenSave = () => {
-    if (!tokenInput.trim()) {
-      setAuthMessage("Enter a valid JWT token.");
-      setAuthState("error");
-      return;
-    }
-    setAuthToken(tokenInput.trim());
-    setAuthState("success");
-    setAuthMessage("Token saved. Data will refresh shortly.");
-    setAuthVersion((prev) => prev + 1);
-  };
-
-  const handleTokenRequest = async () => {
-    setAuthState("pending");
-    setAuthMessage(null);
-    try {
-      await requestAuthToken({
-        clientId,
-        clientSecret,
-        scope: scopeInput
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
-      });
-      const token = getAuthToken();
-      setTokenInput(token ?? "");
-      setAuthState("success");
-      setAuthMessage("Token issued and stored successfully.");
-      setAuthVersion((prev) => prev + 1);
-    } catch (error) {
-      setAuthState("error");
-      setAuthMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to issue the token. Check the credentials."
       );
     }
   };
@@ -406,7 +330,7 @@ export default function AnalyticsDashboard() {
 
   if (!report) {
     return null;
-    }
+  }
 
   const totals = report.totals;
   const serviceMetrics = report.serviceMetrics;
@@ -428,61 +352,12 @@ export default function AnalyticsDashboard() {
       </header>
 
       <section className="panel security-panel">
-        <h3>Secure access</h3>
-        <div className="token-actions">
-          <div className="token-manual">
-            <label htmlFor="tokenInput">JWT token</label>
-            <textarea
-              id="tokenInput"
-              value={tokenInput}
-              onChange={(event) => setTokenInput(event.target.value)}
-              placeholder="Paste the authentication token here..."
-            />
-            <button type="button" onClick={handleTokenSave}>
-              Save token
-            </button>
-          </div>
-          <div className="token-request">
-            <label htmlFor="clientId">Client ID</label>
-            <input
-              id="clientId"
-              value={clientId}
-              onChange={(event) => setClientId(event.target.value)}
-              placeholder="e.g. ed-admin"
-              autoComplete="off"
-            />
-            <label htmlFor="clientSecret">Client Secret</label>
-            <input
-              id="clientSecret"
-              type="password"
-              value={clientSecret}
-              onChange={(event) => setClientSecret(event.target.value)}
-              placeholder="••••••••"
-              autoComplete="off"
-            />
-            <label htmlFor="scopes">Scopes</label>
-            <input
-              id="scopes"
-              value={scopeInput}
-              onChange={(event) => setScopeInput(event.target.value)}
-              placeholder="analytics:read,pms:read,pms:write"
-            />
-            <button
-              type="button"
-              onClick={handleTokenRequest}
-              disabled={authState === "pending"}
-            >
-              {authState === "pending" ? "Issuing..." : "Issue new token"}
-            </button>
-          </div>
-        </div>
-        {authMessage && (
-          <span
-            className={`auth-message ${authState === "error" ? "error" : "success"}`}
-          >
-            {authMessage}
-          </span>
-        )}
+        <h3>Service access</h3>
+        <p>
+          Analytics and PMS integration endpoints are now exposed without JWT
+          authentication. Restrict access via your network controls or API
+          gateway as needed.
+        </p>
       </section>
 
       <div className="analytics-dashboard__summary-grid">

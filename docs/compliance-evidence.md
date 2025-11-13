@@ -2,10 +2,10 @@
 
 | Control Domain | Requirement | Implementation | Evidence / Location |
 |----------------|-------------|----------------|----------------------|
-| **Access Controls** | Unique identities, scoped permissions | JWT service (`/api/auth/token`) issuances restricted via client credentials + scopes. | Code: `src/setupProxy.js`, `server/auth.ts`; Audit log entries per token issuance (`server/audit-logger.ts`). |
-| **Encryption in Transit** | TLS 1.2+ for all PHI data flows | CRA dev server enforces HTTPS; production behind GCLB / reverse proxy with TLS. | Docs: `docs/security.md` (تشفير البيانات). |
+| **Access Controls** | Restrict access to internal services | Endpoints exposed only on trusted network/VPN; optional gateway-level Basic/API key recommended. | Configuration: `src/setupProxy.js`; network policy docs in `docs/security.md`. |
+| **Encryption in Transit** | TLS 1.2+ for all PHI data flows | CRA dev server enforces HTTPS; production behind GCLB / reverse proxy with TLS. | Docs: `docs/security.md` (Data Encryption section). |
 | **Encryption at Rest** | AES-256 or equivalent for stored PHI | `server/security.ts` encrypts analytics snapshots + audit logs using AES-256-GCM; guidance provided for CloudSQL/GCS encryption. | Files: `server/data/*.enc`, configuration steps in `docs/security.md`. |
-| **Audit Logging** | Immutable, tamper-evident audit trail | `server/audit-logger.ts` appends encrypted NDJSON entries per sensitive operation (auth, analytics, PMS). | Log path `server/data/audit-log.ndjson`; review via `exportDecryptedAuditEvents`. |
+| **Audit Logging** | Immutable, tamper-evident audit trail | `server/audit-logger.ts` appends encrypted NDJSON entries per sensitive analytics / PMS operations. | Log path `server/data/audit-log.ndjson`; review via `exportDecryptedAuditEvents`. |
 | **Monitoring & Alerting** | Track availability & anomalies | `server/systemMetrics.ts` + Analytics dashboard “Service health” section; alerts defined in HA doc. | Dashboard: `src/ai/dashboard/AnalyticsDashboard.tsx`; doc `docs/high-availability.md`. |
 | **Incident Response** | Documented procedure, escalation | Runbook with detection, mitigation, communication, post-mortem steps. | `docs/runbooks/voice-agent-failover.md`. |
 | **Business Continuity** | DR plan, RTO/RPO targets | Active-active regional design, database failover, backup strategy. | Architecture detail `docs/high-availability.md`. |

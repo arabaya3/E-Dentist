@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./ai-dashboard.scss";
-import { getAuthToken } from "../security";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 
 type DashboardTotals = {
@@ -78,14 +77,10 @@ const PLAYGROUND_SCRIPTS = [
   "Thank you for calling eDentist. Have a great day!",
 ];
 
-const TOKEN_EVENT = "ed-auth-token-changed";
-
 export default function AIDashboard() {
   const [report, setReport] = useState<DashboardReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [authVersion, setAuthVersion] = useState(0);
-
   const [voiceName, setVoiceName] = useState<string>(
     VOICE_OPTIONS[0].voiceName
   );
@@ -107,19 +102,11 @@ export default function AIDashboard() {
   }, [config]);
 
   const fetchReport = useCallback(async () => {
-    const token = getAuthToken();
-    if (!token) {
-      setError("The dashboard requires a valid JWT token.");
-      setReport(null);
-      setIsLoading(false);
-      return;
-    }
     try {
       const response = await fetch("/api/analytics/report", {
         method: "GET",
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${token}`,
         },
         cache: "no-store",
       });
@@ -146,13 +133,7 @@ export default function AIDashboard() {
     return () => {
       window.clearInterval(interval);
     };
-  }, [authVersion, fetchReport]);
-
-  useEffect(() => {
-    const handler = () => setAuthVersion((prev) => prev + 1);
-    window.addEventListener(TOKEN_EVENT, handler);
-    return () => window.removeEventListener(TOKEN_EVENT, handler);
-  }, []);
+  }, [fetchReport]);
 
   const metrics = useMemo<MetricCard[]>(() => {
     if (!report || !report.totals) {

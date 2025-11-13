@@ -12,7 +12,6 @@ if (!process.env.TS_NODE_REGISTERED) {
 
 const analyticsEngine = require('../server/analytics-engine');
 const { pmsIntegration, IntegrationError } = require('../server/pmsIntegration');
-const { issueJWT, verifyJWT, requireScope } = require('../server/auth.ts');
 const { systemMetrics } = require('../server/systemMetrics.ts');
 const { recordAuditEvent } = require('../server/audit-logger.ts');
 const { getActiveAgentProfile } = require('../server/dbBookingIntegration.ts');
@@ -43,23 +42,12 @@ function parseJson(req) {
   });
 }
 
-function authenticate(req, res, scopes = []) {
-  const header = req.headers?.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) {
-    res.status(401).json({ status: 'error', message: 'Authorization token required' });
-    return null;
-  }
-  try {
-    const payload = verifyJWT(token);
-    requireScope(scopes)(payload);
-    return payload;
-  } catch (error) {
-    res
-      .status(401)
-      .json({ status: 'error', message: 'Invalid or expired token', details: error.message });
-    return null;
-  }
+function anonymousPayload(scopes = []) {
+  return {
+    sub: 'anonymous',
+    role: 'system',
+    scope: scopes,
+  };
 }
 
 function resolveActor(req, payload) {
@@ -89,55 +77,6 @@ function audit(action, status, req, payload, target, metadata) {
 }
 
 module.exports = function setupAnalyticsProxy(app) {
-  app.post('/api/auth/token', async (req, res) => {
-    const started = Date.now();
-    let statusCode;
-    let auditStatus = 'failure';
-    let auditPayload = null;
-    let auditMetadata = {};
-    try {
-      const payload = await parseJson(req);
-      const expectedId = process.env.EDENTIST_AUTH_CLIENT_ID;
-      const expectedSecret = process.env.EDENTIST_AUTH_CLIENT_SECRET;
-      if (!expectedId || !expectedSecret) {
-        throw new Error('Authentication secrets not configured');
-      }
-      if (payload.clientId !== expectedId || payload.clientSecret !== expectedSecret) {
-        res.status(401).json({ status: 'error', message: 'Invalid client credentials' });
-        statusCode = res.statusCode || 401;
-        auditMetadata = { reason: 'invalid_credentials', clientId: payload.clientId };
-        return;
-      }
-      const token = issueJWT({
-        sub: payload.sub ?? expectedId,
-        scope: payload.scope ?? ['analytics:read', 'pms:write'],
-        role: payload.role ?? 'system',
-      });
-      res.json({ access_token: token, token_type: 'Bearer', expires_in: 3600 });
-      statusCode = res.statusCode;
-       auditStatus = 'success';
-       auditPayload = { sub: payload.sub ?? expectedId, role: payload.role ?? 'system', scope: payload.scope };
-       auditMetadata = { clientId: payload.clientId };
-    } catch (error) {
-      res.status(400).json({
-        status: 'error',
-        message: error?.message || 'Failed to issue token',
-      });
-      statusCode = 400;
-      auditMetadata = { reason: error?.message };
-    } finally {
-      systemMetrics.record('auth.token', Date.now() - started, statusCode ?? res.statusCode);
-      audit(
-        'auth.token.issue',
-        auditStatus,
-        req,
-        auditPayload,
-        { type: 'auth', name: 'token' },
-        { ...auditMetadata, statusCode: statusCode ?? res.statusCode }
-      );
-    }
-  });
-
   app.get('/api/agent/config', async (req, res) => {
     const started = Date.now();
     let statusCode;
@@ -168,20 +107,7 @@ module.exports = function setupAnalyticsProxy(app) {
   app.post('/api/analytics/events', async (req, res) => {
     const started = Date.now();
     let statusCode;
-    const authPayload = authenticate(req, res, ['analytics:write']);
-    if (!authPayload) {
-      statusCode = res.statusCode || 401;
-      systemMetrics.record('analytics.events', Date.now() - started, statusCode);
-      audit(
-        'analytics.events.ingest',
-        'failure',
-        req,
-        null,
-        { type: 'analytics', name: 'events' },
-        { reason: 'auth_failed' }
-      );
-      return;
-    }
+    const authPayload = anonymousPayload(['analytics:write']);
     try {
       const payload = await parseJson(req);
       await analyticsEngine.ingestEvent(payload);
@@ -216,20 +142,8 @@ module.exports = function setupAnalyticsProxy(app) {
   app.get('/api/analytics/report', (req, res) => {
     const started = Date.now();
     let statusCode;
+    const authPayload = anonymousPayload(['analytics:read']);
     try {
-      const authPayload = authenticate(req, res, ['analytics:read']);
-      if (!authPayload) {
-        statusCode = res.statusCode || 401;
-        audit(
-          'analytics.report.view',
-          'failure',
-          req,
-          null,
-          { type: 'analytics', name: 'report' },
-          { reason: 'auth_failed' }
-        );
-        return;
-      }
       res.json(analyticsEngine.getReport());
       statusCode = res.statusCode;
       audit(
@@ -261,20 +175,8 @@ module.exports = function setupAnalyticsProxy(app) {
   app.get('/api/integrations/pms/providers', (req, res) => {
     const started = Date.now();
     let statusCode;
+    const authPayload = anonymousPayload(['pms:read']);
     try {
-      const authPayload = authenticate(req, res, ['pms:read']);
-      if (!authPayload) {
-        statusCode = res.statusCode || 401;
-        audit(
-          'pms.providers.list',
-          'failure',
-          req,
-          null,
-          { type: 'pms', name: 'providers' },
-          { reason: 'auth_failed' }
-        );
-        return;
-      }
       res.json({ providers: pmsIntegration.listProviders() });
       statusCode = res.statusCode;
       audit(
@@ -306,20 +208,7 @@ module.exports = function setupAnalyticsProxy(app) {
   app.post('/api/integrations/pms/:provider/book', async (req, res) => {
     const started = Date.now();
     let statusCode;
-    const authPayload = authenticate(req, res, ['pms:write']);
-    if (!authPayload) {
-      statusCode = res.statusCode || 401;
-      systemMetrics.record('pms.book', Date.now() - started, statusCode);
-      audit(
-        'pms.booking.create',
-        'failure',
-        req,
-        null,
-        { type: 'pms', name: req.params.provider },
-        { reason: 'auth_failed' }
-      );
-      return;
-    }
+    const authPayload = anonymousPayload(['pms:write']);
     try {
       const payload = await parseJson(req);
       const result = await pmsIntegration.createBooking(
@@ -361,20 +250,7 @@ module.exports = function setupAnalyticsProxy(app) {
   app.patch('/api/integrations/pms/:provider/booking/:bookingId', async (req, res) => {
     const started = Date.now();
     let statusCode;
-    const authPayload = authenticate(req, res, ['pms:write']);
-    if (!authPayload) {
-      statusCode = res.statusCode || 401;
-      systemMetrics.record('pms.update', Date.now() - started, statusCode);
-      audit(
-        'pms.booking.update',
-        'failure',
-        req,
-        null,
-        { type: 'pms', name: req.params.provider },
-        { bookingId: req.params.bookingId, reason: 'auth_failed' }
-      );
-      return;
-    }
+    const authPayload = anonymousPayload(['pms:write']);
     try {
       const payload = await parseJson(req);
       const result = await pmsIntegration.updateBooking(
@@ -417,20 +293,7 @@ module.exports = function setupAnalyticsProxy(app) {
   app.delete('/api/integrations/pms/:provider/booking/:bookingId', async (req, res) => {
     const started = Date.now();
     let statusCode;
-    const authPayload = authenticate(req, res, ['pms:write']);
-    if (!authPayload) {
-      statusCode = res.statusCode || 401;
-      systemMetrics.record('pms.cancel', Date.now() - started, statusCode);
-      audit(
-        'pms.booking.delete',
-        'failure',
-        req,
-        null,
-        { type: 'pms', name: req.params.provider },
-        { bookingId: req.params.bookingId, reason: 'auth_failed' }
-      );
-      return;
-    }
+    const authPayload = anonymousPayload(['pms:write']);
     try {
       const payload = await parseJson(req);
       const result = await pmsIntegration.cancelBooking(
@@ -473,20 +336,7 @@ module.exports = function setupAnalyticsProxy(app) {
   app.post('/api/integrations/pms/:provider/performance', async (req, res) => {
     const started = Date.now();
     let statusCode;
-    const authPayload = authenticate(req, res, ['analytics:read', 'pms:write']);
-    if (!authPayload) {
-      statusCode = res.statusCode || 401;
-      systemMetrics.record('pms.performance', Date.now() - started, statusCode);
-      audit(
-        'pms.performance.push',
-        'failure',
-        req,
-        null,
-        { type: 'pms', name: req.params.provider },
-        { reason: 'auth_failed' }
-      );
-      return;
-    }
+    const authPayload = anonymousPayload(['analytics:read', 'pms:write']);
     try {
       const payload = await parseJson(req);
       const reportPayload = payload.report

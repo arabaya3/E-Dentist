@@ -1,70 +1,66 @@
 # eDentist.AI Security Hardening
 
-تهدف هذه المرحلة إلى تلبية متطلبات HIPAA و SOC2 عبر ضبط عناصر الأمان الأساسية:
+This document summarizes the controls implemented to align the AI assistant with baseline HIPAA and SOC 2 expectations.
 
-## تشفير البيانات
+## Data Encryption
 
-- **أثناء النقل**: يقوم العميل بالتحقق من البروتوكول وإعادة التوجيه تلقائيًا إلى HTTPS، ويوصى بالنشر خلف عاكس أو بوابة تدعم TLS 1.2+.
-- **أثناء التخزين (تطبيق)**: تم إضافة وحدة `server/security.ts` التي تعتمد `AES-256-GCM` لتشفير اللقطات الحساسة (مثل حالة التحليلات) باستخدام المفتاح:
+- **In transit**: Clients enforce HTTPS redirects. Deploy behind a load balancer or gateway that supports TLS 1.2 or higher.
+- **At rest (application layer)**: `server/security.ts` encrypts sensitive snapshots—such as analytics state—using `AES-256-GCM` with one of the following secrets:
 
 ```bash
 EDENTIST_AES_KEY=<64-hex>
-# أو
+# or
 EDENTIST_AES_PASSPHRASE="strong passphrase value"
 ```
 
-يتم تخزين الملفات المشفرة في `server/data/analytics-state.enc` بصلاحيات `600`.
-- **قواعد البيانات والنسخ الاحتياطية**: ينصح باستخدام CloudSQL/AlloyDB مع Transparent Data Encryption ونسخ احتياطية تلقائية مشفرة. في حالة PostgreSQL محلي، يمكن تفعيل تشفير القرص (dm-crypt) أو استخدام خدمات سحابية تدعم التشفير المدمج. نسخ GCS/Backups تقيم على bucket ذو إعداد `Uniform bucket-level access` وتفعيل `Bucket Lock`.
+Encrypted files are stored at `server/data/analytics-state.enc` with `600` permissions.
+- **Databases and backups**: Prefer CloudSQL/AlloyDB with Transparent Data Encryption and encrypted automated backups. For self-managed PostgreSQL, enable disk encryption (dm-crypt) or move to a managed service with built-in encryption. Host GCS backups in a bucket configured with uniform bucket-level access and Bucket Lock.
 
-## إدارة الهويات والجلسات
+## Identity and Session Management
 
-- تم إضافة خادم JWT مصغر عبر مسار `POST /api/auth/token` مع بيانات اعتماد تطبيقية (`EDENTIST_AUTH_CLIENT_ID` و `EDENTIST_AUTH_CLIENT_SECRET`).
-- جميع نقاط `/api/analytics/*` و`/api/integrations/pms/*` تتطلب رمز Bearer صالحاً بخاصيات نطاق (`scope`) مناسبة.
-- لتوليد الرموز يتم استخدام متغير `EDENTIST_JWT_SECRET` بطول لا يقل عن 32 محرفًا.
+- The JWT gateway has been removed; `/api/analytics/*` and `/api/integrations/pms/*` no longer require bearer tokens.
+- Restrict access through an API gateway, VPN, or IP allowlists at the network edge. Add basic authentication on the reverse proxy if additional safeguarding is needed.
 
-## تنظيف السجلات (Logs Scrubbing)
+## Log Scrubbing
 
-- كل النصوص التي تعالج في الواجهة أو تُرسل إلى محرك التحليلات تمر عبر `sanitizeSensitiveText` الذي يحجب البريد الإلكتروني، الهاتف، أرقام البطاقات، ويحاول إزالة أنماط الحقن (SQL/Command).
-- تم منع تخزين البيانات الحساسة ضمن حالة الجلسات أو السجلات الصادرة.
+- All text processed in the UI or forwarded to the analytics engine passes through `sanitizeSensitiveText`, masking email addresses, phone numbers, payment data, and common injection patterns.
+- Sensitive values are blocked from session state and outbound log payloads.
 
-## سجلات التدقيق (Audit Logging)
+## Audit Logging
 
-- تمت إضافة وحدة `server/audit-logger.ts` التي تسجّل الأحداث الحساسة (إصدار الرموز، الوصول للتحليلات، طلبات الـ PMS) كسجلات مشفّرة `audit-log.ndjson` داخل `server/data` بصلاحيات `600`.
-- كل سجل يُخزَّن كحمولة `AES-256-GCM` تحتوي على الحد الأدنى من metadata (نوع العملية، الحالة، الممثل، عنوان الـ IP، المعرفات).
-- يمكن تصدير السجلات لأغراض التدقيق عبر استدعاء `exportDecryptedAuditEvents` أو بقراءة الملف وفك التشفير باستخدام نفس المفتاح السرّي.
+- `server/audit-logger.ts` records sensitive analytics and PMS operations as encrypted `audit-log.ndjson` entries in `server/data` with `600` permissions.
+- Each record is stored as an `AES-256-GCM` payload with minimal metadata (action, status, actor, IP address, identifiers).
+- Export entries for audits via `exportDecryptedAuditEvents` or by decrypting the file with the same secret.
 
-## خطة الاستجابة للحوادث
+## Incident Response Plan
 
-- تم نشر خطة مفصلة في `docs/runbooks/voice-agent-failover.md` تغطي التصنيف، أدوات التشخيص، إجراءات التحويل، وقوالب التواصل.
-- يلتزم الفريق بتمارين دورية (ربع سنوية) لمحاكاة فشل المنطقة أو قاعدة البيانات، وتوثيق النتائج ضمن مستند الأدلة.
+- `docs/runbooks/voice-agent-failover.md` documents severity classification, diagnostics, failover, and communication templates.
+- The team performs quarterly simulations of regional or database failures and logs the outcomes in the compliance evidence tracker.
 
-## تشغيل الاختبارات الأمنية
+## Security Testing
 
-تم إضافة اختبار Jest في `src/__tests__/security-sanitizer.test.ts` للتأكد من استمرار عمل آلية التنظيف.
+A Jest test in `src/__tests__/security-sanitizer.test.ts` verifies that the scrubbing routine continues to operate correctly.
 
 ```bash
 npm test -- security-sanitizer.test.ts
 ```
 
-## إعداد متغيرات البيئة
+## Environment Variables
 
 ```bash
-# JWT
-EDENTIST_JWT_SECRET="change-me-please-change-me-please"
-EDENTIST_AUTH_CLIENT_ID="ed-admin"
-EDENTIST_AUTH_CLIENT_SECRET="super-secret-string"
-
 # AES-256
 EDENTIST_AES_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-# أو بديل passphrase
+# passphrase alternative
 EDENTIST_AES_PASSPHRASE="edDentist secret passphrase"
 ```
 
-> **ملاحظة**: يفضل تخزين هذه القيم في Vault أو Secret Manager وليس ضمن مستودع الشفرة.
+- The legacy variables `EDENTIST_JWT_SECRET` and related credentials are no longer used and can be removed from environment files.
 
-## أدلة الالتزام
+> **Note:** Store all secrets in a dedicated Vault or Secret Manager instead of the repository.
 
-- وثيقة `docs/high-availability.md` تعرض الهيكلية الموزعة وخطوات الـ DR.
-- `docs/runbooks/voice-agent-failover.md` تُفصّل إجراءات SEV1/SEV2.
-- `docs/compliance-evidence.md` تجمع قائمة بالسياسات والاختبارات ومتطلبات HIPAA/SOC2 لتسهيل عمليات التدقيق.
+## Compliance References
+
+- `docs/high-availability.md` outlines the distributed architecture and disaster recovery workflow.
+- `docs/runbooks/voice-agent-failover.md` details SEV1 and SEV2 response procedures.
+- `docs/compliance-evidence.md` aggregates policies, tests, and other HIPAA/SOC 2 artifacts for auditors.
 

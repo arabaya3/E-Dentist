@@ -1,5 +1,3 @@
-import { getAuthToken } from "./auth";
-
 export type PMSProvider = "ghl" | "salesforce" | "hubspot";
 
 export interface PatientInfo {
@@ -88,13 +86,11 @@ async function request<T>(
   method: HttpMethod,
   body?: unknown
 ): Promise<T> {
-  const token = getAuthToken();
   const response = await fetch(path, {
     method,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

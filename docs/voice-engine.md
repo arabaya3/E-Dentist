@@ -43,19 +43,19 @@ const synthesis = await engine.synthesizeSpeech({
   - `ar-male` (Puck)
 
 ## Sample Data
-- `data/audio/en_appointment.wav` – female English confirmation call.
-- `data/audio/ar_followup.wav` – male Arabic follow-up.
+- `data/audio/en_appointment.wav` â€“ female English confirmation call.
+- `data/audio/ar_followup.wav` â€“ male Arabic follow-up.
 - Output folder `data/audio/out/*` is created automatically by the smoke test.
 - Scenario list lives in `data/scenarios/call-scenarios.md` with five high-priority call flows.
 
 ## Testing & Latency Goals
-1. **Live streaming loop** – `npm run test:audio`
+1. **Live streaming loop** â€“ `npm run test:audio`
    - Streams PCM chunks through the Live API and expects an audio reply within 0.5s (warns otherwise).
-2. **Voice engine module** – `npm run test:voice-engine`
+2. **Voice engine module** â€“ `npm run test:voice-engine`
    - Transcribes both Arabic & English fixtures and synthesizes two fresh replies.
    - Saves outputs under `data/audio/out/` for manual playback.
 
-During local runs we consistently observed 0.62–0.86s round-trip latency (see terminal logs). Adjust the sample length or network to stay <1s.
+During local runs we consistently observed 0.62â€“0.86s round-trip latency (see terminal logs). Adjust the sample length or network to stay under one second.
 
 ## Integrating in React
 - Import `GeminiVoiceEngine` anywhere inside the CRA app (same env keys already exist).

@@ -1,10 +1,10 @@
-# PMS/CRM Integrations Layer
+# PMS/CRM Integration Layer
 
-تضيف وحدة **pmsIntegration** طبقة تكامل آمنة بين eDentist.AI وأنظمة إدارة العيادات أو أنظمة الـCRM مثل GoHighLevel وSalesforce وHubSpot.
+The **pmsIntegration** module provides a secure bridge between eDentist.AI and practice-management or CRM systems such as GoHighLevel, Salesforce, and HubSpot.
 
-## المتطلبات البيئية
+## Environment requirements
 
-قم بتعريف متغيرات البيئة التالية داخل `.env` (أو خدمة سكرتية آمنة):
+Define the following variables in `.env` (or within your secret manager of choice):
 
 ```bash
 # GoHighLevel
@@ -26,26 +26,26 @@ PMS_HUBSPOT_PIPELINE_ID=default
 PMS_HUBSPOT_STAGE_ID=appointmentscheduled
 ```
 
-- إن لم يكن أحد المتغيرات موجودًا، يتم تعطيل الموفر تلقائيًا.
-- يمكن تعديل أزمنة المهلة عبر `PMS_*_TIMEOUT_MS`.
+- If any variable is missing, the corresponding provider is automatically disabled.
+- Customize request timeouts through `PMS_*_TIMEOUT_MS`.
 
-## نقاط النهاية المحلية
+## Local endpoints
 
-خلال التطوير (via CRA proxy) يتم توفير النقاط التالية:
+During development (via the CRA proxy) the following endpoints are available:
 
-| Endpoint | الوصف |
+| Endpoint | Description |
 | --- | --- |
-| `GET /api/integrations/pms/providers` | قائمة الموفرين وحالة التهيئة |
-| `POST /api/integrations/pms/:provider/book` | إنشاء حجز جديد |
-| `PATCH /api/integrations/pms/:provider/booking/:id` | تحديث الحجز |
-| `DELETE /api/integrations/pms/:provider/booking/:id` | إلغاء الحجز |
-| `POST /api/integrations/pms/:provider/performance` | إرسال تقرير الأداء إلى النظام الخارجي |
+| `GET /api/integrations/pms/providers` | List providers and configuration status |
+| `POST /api/integrations/pms/:provider/book` | Create a new booking |
+| `PATCH /api/integrations/pms/:provider/booking/:id` | Update an existing booking |
+| `DELETE /api/integrations/pms/:provider/booking/:id` | Cancel a booking |
+| `POST /api/integrations/pms/:provider/performance` | Send performance reports to the external system |
 
-> الإرسال إلى `/performance` يستهلك تقرير التحليلات الحالي تلقائيًا إذا لم يتم تمرير حقل `report` في الـpayload.
+> Sending to `/performance` automatically uses the current analytics report when the payload omits the `report` property.
 
-## استخدام الواجهة البرمجية داخل الواجهة
+## Frontend usage
 
-يوفّر الملف `src/services/pmsIntegration.ts` دوالًا جاهزة:
+`src/services/pmsIntegration.ts` exposes ready-made helpers:
 
 ```ts
 import {
@@ -56,12 +56,12 @@ import {
 } from "@/services/pmsIntegration";
 ```
 
-- يقوم `ConversationManager` باستدعاء هذه الدوال لمزامنة الحجوزات بناءً على نية المستخدم.
-- تسمح لوحة التحليلات بدفع التقارير إلى النظام المفضل مباشرة من واجهة المستخدم.
+- `ConversationManager` calls these functions to synchronize bookings based on the detected user intent.
+- The analytics dashboard can dispatch performance reports directly to the selected PMS.
 
-## ملاحظات الأمان
+## Security notes
 
-- المفاتيح الحساسة يجب تخزينها في مدير أسرار أو متغيرات بيئة خاصة بالخادم.
-- جميع الطلبات الخارجة تمر عبر طبقة تحقق تُعيد أخطاء تفصيلية بدون كشف البيانات السرية.
-- يدعم النظام إعادة تحميل الإعدادات دون إعادة التشغيل (`pmsIntegration.reload()`).
+- Store sensitive keys in a secrets manager or server-side environment variables.
+- Outbound requests pass through validation layers that provide detailed error responses without revealing sensitive data.
+- Settings can be reloaded without restarts via `pmsIntegration.reload()`.
 

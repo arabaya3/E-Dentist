@@ -1,66 +1,67 @@
-# تقرير eDentist.AI Agent
+# eDentist.AI Agent Report
 
-## 1. نظرة عامة
-- **الغرض:** وكيل ذكي (نصي + صوتي) لإدارة مواعيد عيادة الأسنان، الإجابة على الأسئلة الشائعة، وتنفيذ الإجراءات على تكاملات الـPMS/CRM.
-- **التقنيات الأساسية:** React + TypeScript للواجهة، Google Gemini (Text & Live) لطبقة الذكاء، Prisma + PostgreSQL للبيانات، تكاملات PMS مكتوبة في Node/Express (setupProxy + server/*).
-- **حالة اليوم:** يدعم مهام الحجز، الإلغاء، إعادة الجدولة، الاستفسارات العامة، المتابعة بعد الزيارة، وتذكيرات العناية؛ ويقدم تجارب صوتية عبر النموذج الحي ونصية عبر `ConversationManager`.
+## 1. Overview
+- **Purpose:** An intelligent text-and-voice assistant that manages dental appointments, answers FAQs, and executes actions against PMS/CRM integrations.
+- **Core stack:** React + TypeScript for the console, Google Gemini (Text & Live) for AI, Prisma + PostgreSQL for data, and PMS integrations implemented in Node/Express (`setupProxy` + `server/*`).
+- **Current scope:** Handles booking, cancelation, rescheduling, general inquiries, post-visit follow-ups, and care reminders. Voice flows run through Gemini Live; text flows are orchestrated by `ConversationManager`.
 
-## 2. مكونات الوكيل
-| الطبقة | الملفات الأبرز | الوصف |
-|--------|----------------|-------|
-| واجهة المستخدم | `src/components/simple-voice/VoiceAgentBootstrap.tsx`, `src/services/conversation_manager.ts`, `src/contexts/LiveAPIContext` | تشغيل الجلسة النصية/الصوتية، بث الحالة، إرسال التعليمات للنموذج. |
-| الخدمات المساندة | `src/services/conversation_manager.ts`, `src/utils/language.ts` | تحليل المقاصد، استخراج الكيانات، تطبيق قوالب الرد، والاتصال بالـPMS/DB. |
-| طبقة الخادم | `src/setupProxy.js`, `server/dbBookingIntegration.ts`, `server/pmsIntegration.ts` | API موحّد لتوليد التوكنات، تسجيل التحليلات، مزامنة الحجوزات، تحميل بيانات الوكيل. |
-| البيانات | `prisma/schema.prisma`, `prisma/seed.ts`, جدول `clinic_content`، جدول `AgentPageConfig` | تعريف المخطط، التهيئة بالبيانات الافتراضية، وتخزين القوالب الخاصة بكل عيادة. |
+## 2. Agent components
+| Layer | Key files | Description |
+|-------|-----------|-------------|
+| UI | `src/components/simple-voice/VoiceAgentBootstrap.tsx`, `src/services/conversation_manager.ts`, `src/contexts/LiveAPIContext` | Boots the voice/text session, streams state updates, and forwards prompts to the model. |
+| Supporting services | `src/services/conversation_manager.ts`, `src/utils/language.ts` | Intent detection, entity extraction, template rendering, PMS/database calls. |
+| Server layer | `src/setupProxy.js`, `server/dbBookingIntegration.ts`, `server/pmsIntegration.ts` | Unified API for analytics ingestion, booking sync, and agent configuration. |
+| Data | `prisma/schema.prisma`, `prisma/seed.ts`, `clinic_content`, `AgentPageConfig` | Schema definitions, default seed data, and per-clinic response templates. |
 
-## 3. تدفق المحادثة (ConversationManager)
-1. **استقبال الرسالة:** `ingestUserMessage` يسجل الدور والنص في الحالة.
-2. **تحليل النية والكيانات:** يستدعي Gemini مع `capture_clinic_entities` للحصول على intent + entities، مع تطبيع أسماء الخدمات/الأطباء.
-3. **تحديث الحالة:** يتم دمج الكيانات المحفوظة لتبقى السياقات السابقة متاحة.
-4. **توليد الرد:** `generateAssistantReply` يحدد اللغة، يطبق قواعد التحية، ثم:
-   - يختار القالب المناسب (`booking.confirmed`, `follow_up.general`، إلخ).
-   - يستدعي `fetchClinicContent` للحصول على نص القالب من قاعدة البيانات.
-   - يحقن المتغيرات (`{{doctor_name}}`, `{{appointment_time}}`, ...).
-   - إذا لزم الأمر يستدعي `createBookingViaDB` أو `updateBookingViaDB` إلخ لتنفيذ العملية في الـPMS.
-5. **تسجيل الاستجابة:** يتم دفع الرد في سجل الجلسة ليستخدم كسياق للطلبات التالية.
+## 3. Conversation flow (`ConversationManager`)
+1. **Ingest message:** `ingestUserMessage` records role and text in the session state.
+2. **Intent & entity analysis:** Calls Gemini with `capture_clinic_entities` to retrieve intent + entities and normalize service/doctor names.
+3. **State update:** Merges extracted entities with prior context.
+4. **Generate reply:** `generateAssistantReply` detects language, applies greeting rules, then:
+   - Chooses the appropriate template (`booking.confirmed`, `follow_up.general`, etc.).
+   - Fetches text via `fetchClinicContent`.
+   - Injects variables (`{{doctor_name}}`, `{{appointment_time}}`, ...).
+   - If required, invokes `createBookingViaDB`, `updateBookingViaDB`, etc., to perform PMS operations.
+5. **Log response:** Pushes the assistant reply into session history for the next turn’s context.
 
-## 4. التدفق الصوتي (VoiceAgentBootstrap)
-- يحمل ضبط الوكيل من `/api/agent/config` والذي يعتمد على `AgentPageConfig` (الاسم، تحية عربية/إنجليزية، الحقول المطلوبة، اسم العيادة).
-- يركّب `systemInstruction` داخل جلسة Gemini Live، مع قواعد ساعات العمل، متطلبات الحجز، ودعم الأداة `render_altair` لتصورات التحليلات عند الحاجة.
-- يعتمد على نفس قاعدة البيانات لتحديد التحية الأولية ويعيد استخدام بيانات الوكيل النشطة.
+## 4. Voice flow (`VoiceAgentBootstrap`)
+- Loads the active agent profile from `/api/agent/config`, which references `AgentPageConfig` (localized greeting, required fields, clinic details).
+- Builds the Gemini Live `systemInstruction`, including working hours, booking requirements, and the `render_altair` tool for analytics visuals.
+- Reuses the same database content for greetings and agent metadata.
 
-## 5. الربط مع قاعدة البيانات
-- **الحجوزات:** دوال `createBookingViaDB`, `updateBookingViaDB`, `cancelBookingViaDB` تترجم الطلب إلى سجلات `appointment` وتربطه بالطبيب/العيادة عبر `agentPageConfig` أو `user`.
-- **توافر الأطباء:** `getAvailableDoctors` تجمع قائمة الأطباء النشطين من `agentPageConfig` أو مستخدمي العيادة.
-- **قوالب العيادة:** تم إعادة تفعيل جدول `clinic_content` ويُستخدم الآن لأي ردود قابلة للتخصيص. يتم الاحتفاظ بالقيم الافتراضية (تحية الترحيب) داخل `AgentPageConfig` لاستخدامها كحل أخير فقط.
+## 5. Database interactions
+- **Bookings:** `createBookingViaDB`, `updateBookingViaDB`, and `cancelBookingViaDB` translate requests into `appointment` records and link them to the appropriate doctor/clinic via `agentPageConfig` or `user`.
+- **Doctor availability:** `getAvailableDoctors` aggregates active doctors from `agentPageConfig` or clinic users.
+- **Clinic templates:** The restored `clinic_content` table supplies customizable responses. Default greetings remain in `AgentPageConfig` as a final fallback.
 
-## 6. المشكلة التي تم حلّها
-- **الأثر:** الوكيل كان يعيد ردودًا عامة لأن `fetchClinicContent` كانت تقرأ فقط من `AgentPageConfig` بعد إزالة جدول `clinic_content` في الهجرات السابقة، فغابت القوالب الخاصة بكل عيادة.
-- **المعالجة:**
-  1. أعدنا تعريف نموذج `ClinicContent` في `prisma/schema.prisma` مع مصفوفة كلمات مفتاحية ودعائم timestamps.
-  2. أضفنا هجرة `20251112153000_create_clinic_content` لإنشاء الجدول + الفهارس.
-  3. حسّنّا `fetchClinicContent` للاستعلام عن الجدول مع دعم اللغة الاحتياطية ثم الرجوع إلى تحيات `AgentPageConfig` فقط عند الضرورة.
-  4. قمنا بتحديث `prisma/seed.ts` لملء عينات عربية/إنجليزية للحالات (`booking.confirmed`, `booking.missing_fields`, `follow_up.general`, ...).
-  5. تم توثيق خطوات تهيئة الجدول داخل `README.md` تحت قسم "Clinic content templates".
-- **النتيجة:** أي استجابة تنتقل الآن أولًا إلى بيانات العيادة المخزنة قبل اللجوء إلى نصوص عامة، ما يضمن اتساق الهوية اللفظية وروح العيادة في الردود.
+## 6. Issue resolved
+- **Impact:** The agent reverted to generic responses because `fetchClinicContent` read only from `AgentPageConfig` after the `clinic_content` table was dropped in earlier migrations.
+- **Fix:**
+  1. Reintroduced the `ClinicContent` model in `prisma/schema.prisma` with keyword tags and timestamps.
+  2. Added migration `20251112153000_create_clinic_content` to create the table and indexes.
+  3. Updated `fetchClinicContent` to query the table with locale fallback, returning to `AgentPageConfig` only when necessary.
+  4. Refreshed `prisma/seed.ts` with Arabic/English samples (`booking.confirmed`, `booking.missing_fields`, `follow_up.general`, ...).
+  5. Documented the initialization steps in the README under “Clinic content templates”.
+- **Outcome:** Responses now prioritize clinic-specific content before falling back to generic copy, preserving branding and tone.
 
-## 7. طريقة تغذية القوالب
-1. شغّل الهجرات والبذور:
+## 7. Template management workflow
+1. Run migrations and seeds:
    ```bash
    npx prisma migrate deploy
    npx prisma db seed
    ```
-2. أضف/حدّث الصفوف في `clinic_content` (عبر Prisma Studio أو `psql`) مع الحقول:
-   - `slug`: يطابق ما يرسله `ConversationManager` (مثال: `booking.confirmed`).
-   - `locale`: `ar` أو `en`.
-   - `content`: نص يدعم المتغيرات داخل أقواس مزدوجة (`{{doctor_name}}`).
-   - `tags`: حقل معلوماتي للاستخدام المستقبلي (يمكن تركه فارغًا / `[]`).
-3. لا حاجة لإعادة نشر الواجهة بعد تعديل القوالب؛ يتم جلبها لحظيًا من قاعدة البيانات.
+2. Add or edit rows in `clinic_content` (via Prisma Studio or `psql`) using the fields:
+   - `slug`: matches keys emitted by `ConversationManager` (e.g., `booking.confirmed`).
+   - `locale`: `ar` or `en`.
+   - `content`: text supporting double-braced variables (`{{doctor_name}}`).
+   - `tags`: optional metadata for future use (can be empty `[]`).
+3. Redeployment is unnecessary—templates are fetched live from the database.
 
-## 8. توصيات ومهام تالية
-1. **تشغيل اختبار محادثة:** `npm run demo:conversation` للتأكد من أن النصوص الجديدة تظهر بعد تحديث قاعدة البيانات.
-2. **إضافة قوالب إضافية:** مثل `booking.failure_*`, `service.orthodontics` لضمان تغطية كاملة لكل intent.
-3. **لوحة إدارة محتوى:** بناء صفحة بسيطة فوق `/api/agent/config` لإدارة `clinic_content` بدون تدخل مباشر في قاعدة البيانات.
-4. **مراقبة الجودة:** إضافة تنبيهات إذا لم يُعثر على قالب لأي slug لتجنب العودة للصيغة العامة مستقبلًا.
+## 8. Recommendations & next steps
+1. **Run the conversation demo:** `npm run demo:conversation` to ensure updated text appears after database changes.
+2. **Add more templates:** Cover cases such as `booking.failure_*` and `service.orthodontics` for full intent coverage.
+3. **Content admin UI:** Build a simple interface on top of `/api/agent/config` to manage `clinic_content` without manual DB edits.
+4. **Quality monitoring:** Trigger alerts when a template is missing for any slug to avoid future fallbacks.
 
-> آخر تحديث: يعتمد هذا التقرير على الحالة بعد إصلاحات 12 نوفمبر 2025 (إعادة ربط الوكيل بقوالب قاعدة البيانات).
+> Last updated: reflects system state after the fixes on 12 November 2025 (restoring database-backed templates).
+
