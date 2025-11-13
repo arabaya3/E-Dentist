@@ -24,38 +24,131 @@ const renderAltairDeclaration: FunctionDeclaration = {
   },
 };
 
+const DEFAULT_AR_GREETING =
+  "مرحباً! أنا eDentist.AI، مساعد الحجوزات الذكي للعيادات السنية. أستطيع مساعدتك في حجز، تعديل، أو إلغاء المواعيد بالإضافة إلى الإجابة عن أسئلة الخدمات.";
+
+const DEFAULT_EN_GREETING =
+  "Hello! I’m eDentist.AI, the concierge for your dental clinic. I can book, reschedule, or cancel appointments and answer service questions.";
+
+const DEFAULT_REQUIRED_FIELDS = ["name", "phone", "service"];
+
+type AgentConfigPayload = {
+  agentId?: string;
+  agentName?: string | null;
+  clinicName?: string | null;
+  welcomeMessage?: string | null;
+  initialGreetingMessage?: string | null;
+  requiredInfo?: unknown;
+};
+
+function sanitizeInstructionValue(value: string) {
+  return value.replace(/[`]/g, "\\`").replace(/\$\{/g, "\\${");
+}
+
+function extractRequiredFields(
+  source: AgentConfigPayload["requiredInfo"]
+): string[] {
+  if (!source) {
+    return DEFAULT_REQUIRED_FIELDS;
+  }
+
+  if (Array.isArray(source)) {
+    return source.map((item) => String(item));
+  }
+
+  if (typeof source === "object" && source !== null) {
+    const fields = (source as Record<string, unknown>).fields;
+    if (Array.isArray(fields)) {
+      return fields.map((item) => String(item));
+    }
+  }
+
+  return DEFAULT_REQUIRED_FIELDS;
+}
+
 export default function VoiceAgentBootstrap() {
   const { client, setConfig, setModel } = useLiveAPIContext();
 
   useEffect(() => {
-    setModel(GEMINI_LIVE_MODEL);
+    let cancelled = false;
 
-    setConfig({
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName: "Aoede",
+    async function bootstrap() {
+      setModel(GEMINI_LIVE_MODEL);
+
+      let agentConfig: AgentConfigPayload | null = null;
+
+      try {
+        const response = await fetch("/api/agent/config");
+        if (response.ok) {
+          const payload = await response.json();
+          agentConfig = payload?.config ?? null;
+        } else {
+          console.warn(
+            `[voice-agent] Failed to load agent config: ${response.status}`
+          );
+        }
+      } catch (error) {
+        console.warn("[voice-agent] Error loading agent config:", error);
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      const arabicGreeting = sanitizeInstructionValue(
+        (agentConfig?.welcomeMessage || DEFAULT_AR_GREETING).trim()
+      );
+      const englishGreeting = sanitizeInstructionValue(
+        (agentConfig?.initialGreetingMessage || DEFAULT_EN_GREETING).trim()
+      );
+      const conciergeName =
+        agentConfig?.agentName?.trim() || "the eDentist.AI concierge";
+      const clinicName =
+        agentConfig?.clinicName?.trim() || "your dental clinic";
+      const requiredFields = extractRequiredFields(agentConfig?.requiredInfo);
+
+      setConfig({
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: "Aoede",
+            },
           },
         },
-      },
-      systemInstruction: {
-        parts: [
-          {
-            text: `You are eDentist.AI — a bilingual (Arabic/English) voice concierge for dental clinics.
+        systemInstruction: {
+          parts: [
+            {
+              text: `You are eDentist.AI — a bilingual (Arabic/English) voice concierge representing ${clinicName}.
+
+Active concierge persona: ${conciergeName}.
+
+Session kickoff:
+- If the caller greets in Arabic, respond with this stored clinic greeting: """${arabicGreeting}"""
+- Otherwise respond with this English greeting: """${englishGreeting}"""
+- Do not invent a different greeting unless the caller explicitly asks for something else.
 
 Core responsibilities:
-- Capture the patient name, phone, requested service, preferred dentist, branch, date, and time before confirming appointments.
+- Capture and confirm the following before finalizing any booking: ${requiredFields.join(
+                ", "
+              )}
 - Suggest available dentists and alternative slots whenever the requested time is unavailable.
 - Follow business rules: working hours are Sunday–Thursday, 9 AM–9 PM; the clinic is closed on Fridays and Saturdays.
 - Speak with a professional, warm tone that reflects dental-care expertise and use the clinic's knowledge base when relevant.
 - Prioritize voice-first booking, follow-ups, cancellations, orthodontics, whitening, implants, hygiene reminders, and clinic FAQs.
 - Only call the render_altair tool when the user explicitly requests analytics or charts; otherwise remain in voice conversation mode.`,
-          },
-        ],
-      },
-      tools: [{ functionDeclarations: [renderAltairDeclaration] }],
-    });
+            },
+          ],
+        },
+        tools: [{ functionDeclarations: [renderAltairDeclaration] }],
+      });
+    }
+
+    bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
   }, [setConfig, setModel]);
 
   useEffect(() => {

@@ -15,6 +15,7 @@ const { pmsIntegration, IntegrationError } = require('../server/pmsIntegration')
 const { issueJWT, verifyJWT, requireScope } = require('../server/auth.ts');
 const { systemMetrics } = require('../server/systemMetrics.ts');
 const { recordAuditEvent } = require('../server/audit-logger.ts');
+const { getActiveAgentProfile } = require('../server/dbBookingIntegration.ts');
 
 function parseJson(req) {
   return new Promise((resolve, reject) => {
@@ -134,6 +135,33 @@ module.exports = function setupAnalyticsProxy(app) {
         { type: 'auth', name: 'token' },
         { ...auditMetadata, statusCode: statusCode ?? res.statusCode }
       );
+    }
+  });
+
+  app.get('/api/agent/config', async (req, res) => {
+    const started = Date.now();
+    let statusCode;
+    try {
+      const profile = await getActiveAgentProfile();
+      if (!profile) {
+        res.status(404).json({
+          status: 'error',
+          message: 'No active voice agent is configured.',
+        });
+        statusCode = res.statusCode || 404;
+        return;
+      }
+
+      res.json({ status: 'success', config: profile });
+      statusCode = res.statusCode;
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: error?.message || 'Failed to load agent configuration',
+      });
+      statusCode = res.statusCode || 500;
+    } finally {
+      systemMetrics.record('agent.config', Date.now() - started, statusCode ?? res.statusCode);
     }
   });
 

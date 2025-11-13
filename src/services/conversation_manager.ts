@@ -249,6 +249,50 @@ Extract entities using the capture_clinic_entities function and respond with val
       parts: [{ text: turn.text }],
     }));
 
+    const lastUserMessage =
+      [...this.state.turns].reverse().find((turn) => turn.role === "user")
+        ?.text ?? "";
+    const language = detectPreferredLanguage(lastUserMessage);
+    const prefersArabic = language === "ar";
+    const assistantTurnsCount = this.state.turns.filter(
+      (turn) => turn.role === "assistant"
+    ).length;
+
+    const greetingRegex =
+      /(مرحبا|مرحباً|أهلاً|اهلا|هلا|السلام عليكم|hi\b|hello\b|hey\b|good\s+(morning|afternoon|evening))/i;
+    if (
+      assistantTurnsCount === 0 &&
+      lastUserMessage.trim().length > 0 &&
+      greetingRegex.test(lastUserMessage.trim())
+    ) {
+      let greetingReply: string | null = null;
+      try {
+        const dbGreeting = await fetchClinicContent("initial.greeting", language);
+        if (dbGreeting && dbGreeting.trim().length) {
+          greetingReply = dbGreeting.trim();
+        }
+      } catch (error) {
+        console.warn("Failed to load initial greeting from database:", error);
+      }
+
+      if (!greetingReply) {
+        greetingReply = prefersArabic
+          ? "مرحباً! أنا eDentist.AI، مساعد الحجوزات الذكي للعيادات السنية. أستطيع مساعدتك في حجز، تعديل، أو إلغاء المواعيد بالإضافة إلى الإجابة عن أسئلة الخدمات. كيف أقدر أساعدك اليوم؟"
+          : "Hello! I’m eDentist.AI, your dental clinic assistant. I can help you book, adjust, or cancel appointments and answer questions about our services. How can I assist you today?";
+      }
+
+      this.state.currentIntent = "UNKNOWN";
+      this.state.turns.push({
+        id: generateId(),
+        role: "assistant",
+        text: greetingReply,
+        intent: "UNKNOWN",
+        entities: this.state.entities,
+        timestamp: Date.now(),
+      });
+      return greetingReply;
+    }
+
     const response = await this.client.models.generateContent({
       model: this.model,
       contents: context,
@@ -272,12 +316,6 @@ Respond in Arabic or English matching the user's language, with a friendly and p
         },
       },
     });
-
-    const lastUserMessage =
-      [...this.state.turns].reverse().find((turn) => turn.role === "user")
-        ?.text ?? "";
-    const language = detectPreferredLanguage(lastUserMessage);
-    const prefersArabic = language === "ar";
 
     const doctorName = this.state.entities.doctor_name;
     const clinicBranch = this.state.entities.clinic_branch;
@@ -441,41 +479,19 @@ Respond in Arabic or English matching the user's language, with a friendly and p
       return Number.isNaN(parsed) ? null : parsed;
     };
 
-    const appendDoctorSuggestions = async (
-      baseReply: string,
-      reason?: string
-    ) => {
-      if (
-        !appointmentDate ||
-        !clinicBranch ||
-        !doctorName ||
-        !["ALREADY_BOOKED", "DOCTOR_NOT_AVAILABLE_DAY"].includes(
-          reason ?? ""
-        )
-      ) {
-        return baseReply;
-      }
+    const appendDoctorSuggestions = async (baseReply: string) => {
       try {
-        const available = await getAvailableDoctors(
-          appointmentDate,
-          clinicBranch
-        );
+        const available = await getAvailableDoctors();
         if (!available.length) {
           return baseReply;
         }
-        const names = available
-          .filter((doctor) => doctor.name !== doctorName)
-          .map((doctor) => doctor.name);
-        if (!names.length) {
-          return baseReply;
-        }
-        const joined = prefersArabic ? names.join("، ") : names.join(", ");
+        const joined = joinByLanguage(language, available);
         const suggestion = prefersArabic
-          ? ` الأطباء المتاحون في ${clinicBranch} يوم ${appointmentDate}: ${joined}.`
-          : ` Available doctors at ${clinicBranch} on ${appointmentDate}: ${joined}.`;
+          ? ` المتاحون حالياً: ${joined}.`
+          : ` Available specialists right now: ${joined}.`;
         return `${baseReply} ${suggestion}`.trim();
       } catch (err) {
-        console.warn("Failed to fetch alternative doctors:", err);
+        console.warn("Failed to fetch practitioner list:", err);
         return baseReply;
       }
     };
@@ -543,10 +559,7 @@ Respond in Arabic or English matching the user's language, with a friendly and p
             replyKey =
               reasonKeyMap[bookingResult.reason ?? ""] ??
               "booking.failure_general";
-            reply = await appendDoctorSuggestions(
-              reply,
-              bookingResult.reason
-            );
+            reply = await appendDoctorSuggestions(reply);
           }
         } catch (error) {
           reply = prefersArabic
@@ -624,7 +637,7 @@ Respond in Arabic or English matching the user's language, with a friendly and p
             replyKey =
               reasonKeyMap[result.reason ?? ""] ??
               "booking.failure_general";
-            reply = await appendDoctorSuggestions(reply, result.reason);
+            reply = await appendDoctorSuggestions(reply);
           }
         }
       }

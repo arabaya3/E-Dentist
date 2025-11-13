@@ -1,20 +1,7 @@
+import { Prisma } from "@prisma/client";
 import { db } from "./db";
 
 type Locale = "ar" | "en";
-
-type DoctorRecord = {
-  id: number;
-  name: string;
-  branch: string;
-  work_start: Date;
-  work_end: Date;
-  available_days: string[];
-};
-
-type ValidationError = {
-  message: string;
-  reason: string;
-};
 
 export type CreateBookingArgs = {
   doctor_name: string;
@@ -37,137 +24,123 @@ export type BookingResult = {
   reason?: string;
 };
 
-const ACTIVE_APPOINTMENT_STATUSES = ["confirmed", "pending"];
+type PractitionerRecord = {
+  agentId: string;
+  agentName: string;
+  clinicName: string | null;
+};
 
-function toDateTime(date: string, time: string) {
-  return new Date(`${date}T${time}:00`);
+export type AgentProfile = {
+  id: number;
+  agentId: string;
+  agentName: string;
+  clinicId: number | null;
+  clinicName: string | null;
+  welcomeMessage: string | null;
+  initialGreetingMessage: string | null;
+  color: string | null;
+  image: string | null;
+  agentAvatar: string | null;
+  provider: string;
+  gender: string;
+  requiredInfo: Prisma.JsonValue | null;
+  updatedAt: Date;
+};
+
+function buildRawDetails(
+  data: CreateBookingArgs,
+  overrides?: Partial<Record<string, unknown>>
+) {
+  return {
+    doctorName: data.doctor_name,
+    clinicBranch: data.clinic_branch,
+    patientName: data.patient_name,
+    patientPhone: data.patient_phone,
+    serviceType: data.service_type,
+    appointmentDate: data.appointment_date,
+    appointmentTime: data.appointment_time,
+    status: "confirmed",
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
 }
 
-function getWeekday(date: Date) {
-  return date.toLocaleString("en-US", { weekday: "long" });
-}
-
-function toTimeString(date: Date) {
-  return date.toISOString().substring(11, 16);
-}
-
-async function resolveDoctor(name: string, branch: string) {
-  return db.doctors.findFirst({
-    where: { name, branch },
-  }) as Promise<DoctorRecord | null>;
-}
-
-function validateDoctorDayAvailability(
-  doctor: DoctorRecord,
-  appointmentDate: Date
-): ValidationError | null {
-  const weekday = getWeekday(appointmentDate);
-  if (!doctor.available_days.includes(weekday)) {
-    return {
-      message: `الدكتور ${doctor.name} غير متاح يوم ${weekday}.`,
-      reason: "DOCTOR_NOT_AVAILABLE_DAY",
-    };
-  }
-  return null;
-}
-
-function validateDoctorHours(
-  doctor: DoctorRecord,
-  dateISO: string,
-  appointmentDate: Date
-): ValidationError | null {
-  const workStart = new Date(`${dateISO}T${toTimeString(doctor.work_start)}:00`);
-  const workEnd = new Date(`${dateISO}T${toTimeString(doctor.work_end)}:00`);
-  if (appointmentDate < workStart || appointmentDate >= workEnd) {
-    return {
-      message: `الطبيب ${doctor.name} يستقبل المرضى بين ${toTimeString(
-        doctor.work_start
-      )} و ${toTimeString(doctor.work_end)}.`,
-      reason: "OUTSIDE_WORKING_HOURS",
-    };
-  }
-  return null;
-}
-
-async function ensureDoctorSlotFree(
-  doctorId: number,
-  appointmentDate: Date,
-  ignoreAppointmentId?: number
-): Promise<ValidationError | null> {
-  const existing = await db.appointments.findFirst({
+async function resolvePractitioner(
+  doctorName: string,
+  clinicBranch: string
+): Promise<PractitionerRecord | null> {
+  const practitioner = await db.agentPageConfig.findFirst({
     where: {
-      doctor_id: doctorId,
-      appointment_date: appointmentDate,
-      appointment_time: appointmentDate,
-      status: { in: ACTIVE_APPOINTMENT_STATUSES },
-      ...(ignoreAppointmentId
-        ? { NOT: { id: ignoreAppointmentId } }
-        : undefined),
+      agentName: { equals: doctorName, mode: "insensitive" },
     },
+    include: { clinic: true },
   });
-  if (existing) {
+
+  if (practitioner) {
+    const clinicName = practitioner.clinic?.name ?? clinicBranch;
+    if (
+      clinicBranch &&
+      clinicName &&
+      clinicName.toLowerCase() !== clinicBranch.toLowerCase()
+    ) {
+      return null;
+    }
     return {
-      message: `الطبيب غير متاح في ${toTimeString(appointmentDate)}. هل ترغب باقتراح وقت آخر؟`,
-      reason: "ALREADY_BOOKED",
+      agentId: practitioner.agentId,
+      agentName: practitioner.agentName || practitioner.agentId,
+      clinicName,
     };
   }
+
+  // fallback: try locating a clinic admin user with matching name
+  const user = await db.user.findFirst({
+    where: {
+      name: { equals: doctorName, mode: "insensitive" },
+      clinic: {
+        name: { equals: clinicBranch, mode: "insensitive" },
+      },
+    },
+    include: { clinic: true },
+  });
+  if (user) {
+    return {
+      agentId: user.id.toString(),
+      agentName: user.name ?? doctorName,
+      clinicName: user.clinic?.name ?? clinicBranch,
+    };
+  }
+
   return null;
 }
 
 export async function createBookingViaDB(
   data: CreateBookingArgs
 ): Promise<BookingResult> {
-  const doctor = await resolveDoctor(data.doctor_name, data.clinic_branch);
+  const practitioner = await resolvePractitioner(
+    data.doctor_name,
+    data.clinic_branch
+  );
 
-  if (!doctor) {
+  if (!practitioner) {
     return {
       success: false,
-      message: `لم يتم العثور على الدكتور ${data.doctor_name} في فرع ${data.clinic_branch}.`,
-      reason: "DOCTOR_NOT_FOUND",
+      message: `لم نتمكن من العثور على مقدم الخدمة "${data.doctor_name}" في فرع ${data.clinic_branch}.`,
+      reason: "PRACTITIONER_NOT_FOUND",
     };
   }
 
-  const appointmentDateTime = toDateTime(
-    data.appointment_date,
-    data.appointment_time
-  );
-
-  const dayError = validateDoctorDayAvailability(doctor, appointmentDateTime);
-  if (dayError) {
-    return { success: false, ...dayError };
-  }
-
-  const hoursError = validateDoctorHours(
-    doctor,
-    data.appointment_date,
-    appointmentDateTime
-  );
-  if (hoursError) {
-    return { success: false, ...hoursError };
-  }
-
-  const slotError = await ensureDoctorSlotFree(
-    doctor.id,
-    appointmentDateTime
-  );
-  if (slotError) {
-    return { success: false, ...slotError };
-  }
-
-  const booking = await db.appointments.create({
+  const booking = await db.appointment.create({
     data: {
-      doctor_id: doctor.id,
-      patient_name: data.patient_name,
-      patient_phone: data.patient_phone,
-      service_type: data.service_type,
-      appointment_date: appointmentDateTime,
-      appointment_time: appointmentDateTime,
+      appointment_raw_details: buildRawDetails(data, {
+        practitionerId: practitioner.agentId,
+        practitionerName: practitioner.agentName,
+      }),
     },
   });
 
   return {
     success: true,
-    message: `تم حجز الموعد مع الدكتور ${doctor.name} يوم ${data.appointment_date} الساعة ${data.appointment_time}.`,
+    message: `تم تسجيل موعدك مع ${practitioner.agentName} يوم ${data.appointment_date} الساعة ${data.appointment_time}.`,
     booking,
   };
 }
@@ -176,9 +149,8 @@ export async function updateBookingViaDB(
   id: number,
   updates: UpdateBookingArgs
 ): Promise<BookingResult> {
-  const existing = await db.appointments.findUnique({
+  const existing = await db.appointment.findUnique({
     where: { id },
-    include: { doctor: true },
   });
 
   if (!existing) {
@@ -189,75 +161,34 @@ export async function updateBookingViaDB(
     };
   }
 
-  let doctor = existing.doctor as DoctorRecord;
-  if (updates.doctor_name || updates.clinic_branch) {
-    if (!(updates.doctor_name && updates.clinic_branch)) {
-      return {
-        success: false,
-        message: "لتغيير الطبيب يجب تحديد الاسم والفرع معاً.",
-        reason: "DOCTOR_DATA_INCOMPLETE",
-      };
-    }
-    const resolved = await resolveDoctor(
-      updates.doctor_name,
-      updates.clinic_branch
-    );
-    if (!resolved) {
-      return {
-        success: false,
-        message: `لم يتم العثور على الدكتور ${updates.doctor_name} في فرع ${updates.clinic_branch}.`,
-        reason: "DOCTOR_NOT_FOUND",
-      };
-    }
-    doctor = resolved;
-  }
+  const currentDetails =
+    (existing.appointment_raw_details as Prisma.JsonObject) ?? {};
 
-  const dateISO =
-    updates.appointment_date ??
-    existing.appointment_date.toISOString().substring(0, 10);
-  const time =
-    updates.appointment_time ??
-    existing.appointment_time.toISOString().substring(11, 16);
-
-  const appointmentDateTime = toDateTime(dateISO, time);
-
-  const dayError = validateDoctorDayAvailability(doctor, appointmentDateTime);
-  if (dayError) {
-    return { success: false, ...dayError };
-  }
-
-  const hoursError = validateDoctorHours(doctor, dateISO, appointmentDateTime);
-  if (hoursError) {
-    return { success: false, ...hoursError };
-  }
-
-  const slotError = await ensureDoctorSlotFree(
-    doctor.id,
-    appointmentDateTime,
-    existing.id
-  );
-  if (slotError) {
-    return { success: false, ...slotError };
-  }
-
-  const payload: Record<string, any> = {
-    patient_name: updates.patient_name ?? existing.patient_name,
-    patient_phone: updates.patient_phone ?? existing.patient_phone,
-    service_type: updates.service_type ?? existing.service_type,
-    appointment_date: appointmentDateTime,
-    appointment_time: appointmentDateTime,
-    status: updates.status ?? existing.status,
-    doctor_id: doctor.id,
+  const mergedDetails = {
+    ...currentDetails,
+    doctorName: updates.doctor_name ?? currentDetails["doctorName"],
+    clinicBranch: updates.clinic_branch ?? currentDetails["clinicBranch"],
+    patientName: updates.patient_name ?? currentDetails["patientName"],
+    patientPhone: updates.patient_phone ?? currentDetails["patientPhone"],
+    serviceType: updates.service_type ?? currentDetails["serviceType"],
+    appointmentDate:
+      updates.appointment_date ?? currentDetails["appointmentDate"],
+    appointmentTime:
+      updates.appointment_time ?? currentDetails["appointmentTime"],
+    status: updates.status ?? currentDetails["status"] ?? "confirmed",
+    updatedAt: new Date().toISOString(),
   };
 
-  const booking = await db.appointments.update({
+  const booking = await db.appointment.update({
     where: { id },
-    data: payload,
+    data: {
+      appointment_raw_details: mergedDetails,
+    },
   });
 
   return {
     success: true,
-    message: `تم تحديث موعدك ليكون يوم ${dateISO} الساعة ${time}.`,
+    message: `تم تحديث تفاصيل الموعد بنجاح.`,
     booking,
   };
 }
@@ -265,62 +196,157 @@ export async function updateBookingViaDB(
 export async function cancelBookingViaDB(
   id: number
 ): Promise<BookingResult> {
-  try {
-    const booking = await db.appointments.update({
-      where: { id },
-      data: { status: "cancelled" },
-    });
-    return {
-      success: true,
-      message: "تم إلغاء الموعد بنجاح.",
-      booking,
-    };
-  } catch (error) {
+  const existing = await db.appointment.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
     return {
       success: false,
-      message: "تعذر إلغاء الموعد. يرجى المحاولة لاحقاً.",
-      reason: "CANCEL_FAILED",
+      message: "لم يتم العثور على هذا الموعد.",
+      reason: "BOOKING_NOT_FOUND",
     };
   }
-}
 
-export async function getAvailableDoctors(date: string, branch: string) {
-  const targetDate = new Date(date);
-  const weekday = getWeekday(targetDate);
-  return db.doctors.findMany({
-    where: {
-      branch,
-      available_days: {
-        has: weekday,
+  const currentDetails =
+    (existing.appointment_raw_details as Prisma.JsonObject) ?? {};
+
+  const booking = await db.appointment.update({
+    where: { id },
+    data: {
+      appointment_raw_details: {
+        ...currentDetails,
+        status: "cancelled",
+        cancelledAt: new Date().toISOString(),
       },
     },
   });
+
+  return {
+    success: true,
+    message: "تم إلغاء الموعد بنجاح.",
+    booking,
+  };
+}
+
+export async function getAvailableDoctors(): Promise<string[]> {
+  const configs = await db.agentPageConfig.findMany({
+    include: { clinic: true },
+  });
+
+  if (configs.length > 0) {
+    return configs.map((config) => {
+      const name = config.agentName || config.agentId;
+      const clinic = config.clinic?.name;
+      return clinic ? `${name} (${clinic})` : name;
+    });
+  }
+
+  const clinicUsers = await db.user.findMany({
+    where: { clinicId: { not: null } },
+    take: 5,
+  });
+
+  if (clinicUsers.length > 0) {
+    return clinicUsers.map((user) => user.name ?? "أخصائي العيادة");
+  }
+
+  return [];
+}
+
+function sanitizeTemplate(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
 }
 
 export async function fetchClinicContent(
   slug: string,
   locale: Locale
 ): Promise<string | null> {
-  const baseQuery = {
-    orderBy: { updated_at: "desc" as const },
-  };
+  const normalizedSlug = slug.trim().toLowerCase();
+  const normalizedLocale: Locale = locale === "ar" ? "ar" : "en";
+  const fallbackLocale: Locale = normalizedLocale === "ar" ? "en" : "ar";
 
-  const primary = await db.clinic_content.findFirst({
-    where: { slug, locale },
-    ...baseQuery,
-  });
-  if (primary?.content) {
-    return primary.content;
-  }
-  if (locale !== "en") {
-    const fallback = await db.clinic_content.findFirst({
-      where: { slug, locale: "en" },
-      ...baseQuery,
-    });
-    if (fallback?.content) {
-      return fallback.content;
+  for (const currentLocale of [normalizedLocale, fallbackLocale]) {
+    try {
+      const template = await db.clinicContent.findFirst({
+        where: {
+          slug: normalizedSlug,
+          locale: currentLocale,
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      const content = sanitizeTemplate(template?.content);
+      if (content) {
+        return content;
+      }
+    } catch (error) {
+      console.warn(
+        `Failed to fetch clinic content for ${normalizedSlug}/${currentLocale}:`,
+        error
+      );
+      break;
     }
   }
+
+  if (
+    normalizedSlug === "initial.greeting" ||
+    normalizedSlug === "agent.initial_greeting" ||
+    normalizedSlug === "agent.welcome"
+  ) {
+    try {
+      const agent = await db.agentPageConfig.findFirst({
+        where: { isActive: true },
+        orderBy: { updatedAt: "desc" },
+      });
+      if (!agent) {
+        return null;
+      }
+
+      const welcome = sanitizeTemplate(agent.welcomeMessage);
+      const initialGreeting = sanitizeTemplate(agent.initialGreetingMessage);
+      if (normalizedSlug === "agent.welcome") {
+        return welcome ?? initialGreeting;
+      }
+      return normalizedLocale === "ar"
+        ? welcome ?? initialGreeting
+        : initialGreeting ?? welcome;
+    } catch (error) {
+      console.warn("Failed to fetch fallback agent greeting:", error);
+    }
+  }
+
   return null;
 }
 
+export async function getActiveAgentProfile(): Promise<AgentProfile | null> {
+  const config = await db.agentPageConfig.findFirst({
+    where: { isActive: true },
+    orderBy: { updatedAt: "desc" },
+    include: { clinic: true },
+  });
+
+  if (!config) {
+    return null;
+  }
+
+  return {
+    id: config.id,
+    agentId: config.agentId,
+    agentName: config.agentName || config.agentId,
+    clinicId: config.clinicId ?? null,
+    clinicName: config.clinic?.name ?? null,
+    welcomeMessage: sanitizeTemplate(config.welcomeMessage),
+    initialGreetingMessage: sanitizeTemplate(config.initialGreetingMessage),
+    color: config.color || null,
+    image: config.image || null,
+    agentAvatar: config.agentAvatar || null,
+    provider: config.provider,
+    gender: config.gender,
+    requiredInfo: (config.requiredInfo as Prisma.JsonValue) ?? null,
+    updatedAt: config.updatedAt,
+  };
+}
