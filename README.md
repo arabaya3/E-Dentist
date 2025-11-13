@@ -2,7 +2,7 @@
 
 A bilingual (Arabic/English) voice and text console that helps patients book, modify, or cancel appointments and browse clinic services. The stack combines the Gemini Live API, Prisma, PostgreSQL, and optional PMS/CRM integrations.
 
-> **Heads-up:** Development happens on the `V4_Ayed` branch. Clone or pull that branch before running the project.
+> **تنبيه:** بُني المشروع على فرع `V4_Ayed`. تأكد من استنساخه أو سحب هذا الفرع قبل التشغيل.
 
 ---
 
