@@ -1,0 +1,257 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model WaitingList {
+  id    Int    @id @default(autoincrement())
+  email String @unique
+}
+
+model User {
+  id              Int            @id @default(autoincrement())
+  name            String?
+  email           String?        @unique
+  mobileNumber    String?        @unique
+  photo           String?
+  profileComplete Boolean        @default(false)
+  verifyCode      String?
+  newMobileNumber String?        @unique
+  language        String?        @default("en")
+  clinicId        Int?
+  isSuperAdmin    Boolean        @default(false)
+  isClinicAdmin   Boolean        @default(false)
+  lastLogin       DateTime?
+  createdAt       DateTime       @default(now())
+  reports         Report[]
+  reportReviews   ReportReview[]
+  transactions    Transaction[]
+  clinic          Clinic?        @relation(fields: [clinicId], references: [id])
+}
+
+model Report {
+  id                     Int                    @id @default(autoincrement())
+  anterior_teeth_raw     String?
+  upper_teeth_raw        String?
+  lower_teeth_raw        String?
+  anterior_teeth_labeled String?
+  upper_teeth_labeled    String?
+  lower_teeth_labeled    String?
+  result                 Json?
+  analyzed_issues        Json?
+  created_at             DateTime               @default(now())
+  processed_at           DateTime?
+  type                   ReportType             @default(FREE)
+  userId                 Int
+  transactionId          Int?
+  status                 ReportGenerationStatus
+  error                  String?
+  transaction            Transaction?           @relation(fields: [transactionId], references: [id])
+  user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportReview           ReportReview?
+}
+
+model ContactUs {
+  id          Int     @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  email       String  @default("")
+  phoneNumber String? @default("")
+  position    String  @default("")
+  subject     String
+  message     String
+}
+
+model Transaction {
+  id          Int         @id @default(autoincrement())
+  result      Json?
+  chargeId    String?     @unique
+  serviceType ServiceType
+  userId      Int
+  created_at  DateTime    @default(now())
+  voucherId   Int?
+  reports     Report[]
+  user        User        @relation(fields: [userId], references: [id])
+  voucher     Voucher?    @relation(fields: [voucherId], references: [id])
+
+  @@index([chargeId], map: "chargeId")
+}
+
+model Voucher {
+  id                 Int           @id @default(autoincrement())
+  code               String        @unique
+  discountPercentage Float
+  expirationDate     DateTime
+  seats              Int           @default(1)
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+  isActive           Boolean       @default(true)
+  clinicId           Int?
+  transactions       Transaction[]
+  clinic             Clinic?       @relation(fields: [clinicId], references: [id])
+
+  @@index([code], map: "code")
+}
+
+model CountryPricing {
+  id        Int      @id @default(autoincrement())
+  country   String   @unique
+  currency  Currency
+  pricing   Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReportReview {
+  id       Int    @id @default(autoincrement())
+  reportId Int    @unique
+  userId   Int
+  rating   Int
+  comment  String @default("")
+  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, userId])
+}
+
+model Clinic {
+  id                           Int                     @id @default(autoincrement())
+  name                         String
+  affiliateClinicAccessEnabled Boolean                 @default(false)
+  createdAt                    DateTime                @default(now())
+  updatedAt                    DateTime                @updatedAt
+  photo                        String?
+  agentAssignments             AgentClinicAssignment[]
+  agentPageConfig              AgentPageConfig[]
+  clinicPermissions            ClinicPermission[]
+  users                        User[]
+  voiceCalls                   VoiceCall[]
+  vouchers                     Voucher[]
+}
+
+model Appointment {
+  id                      Int      @id @default(autoincrement())
+  appointment_raw_details Json     @default("{}")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model VoiceCall {
+  id             Int                 @id @default(autoincrement())
+  agentId        String
+  conversationId String              @unique
+  status         String
+  collectedData  Json
+  provider       VoiceAgentsProvider
+  timestamp      DateTime            @default(now())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  clinicId       Int?
+  clinic         Clinic?             @relation(fields: [clinicId], references: [id])
+
+  @@index([agentId])
+  @@index([status])
+  @@index([clinicId])
+}
+
+model AgentClinicAssignment {
+  id        Int      @id @default(autoincrement())
+  agentId   String   @unique
+  clinicId  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true)
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, clinicId])
+  @@index([agentId])
+  @@index([clinicId])
+}
+
+model Permission {
+  id                Int                @id @default(autoincrement())
+  name              String             @unique
+  clinicPermissions ClinicPermission[]
+}
+
+model ClinicPermission {
+  clinicId     Int
+  permissionId Int
+  clinic       Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([clinicId, permissionId])
+}
+
+model AgentPageConfig {
+  id                     Int                 @id @default(autoincrement())
+  agentId                String              @unique
+  welcomeMessage         String              @default("")
+  color                  String              @default("")
+  image                  String              @default("")
+  agentAvatar            String              @default("")
+  agentName              String              @default("")
+  provider               VoiceAgentsProvider @default(ELEVEN_LABS)
+  requiredInfo           Json                @default("{}")
+  clinicId               Int?
+  gender                 Gender              @default(Male)
+  initialGreetingMessage String
+  isActive               Boolean             @default(true)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  clinic                 Clinic?             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+}
+
+model ClinicContent {
+  id        Int      @id @default(autoincrement())
+  slug      String
+  locale    String
+  content   String
+  tags      String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([slug, locale])
+  @@map("clinic_content")
+}
+
+enum ServiceType {
+  REPORT
+}
+
+enum ReportType {
+  FREE
+  PAID
+}
+
+enum Currency {
+  BHD
+  SAR
+  AED
+  QAR
+  KWD
+  OMR
+  USD
+}
+
+enum ReportGenerationStatus {
+  PENDING
+  IN_PROGRESS
+  SUCCESS
+  FAIL
+}
+
+enum VoiceAgentsProvider {
+  ELEVEN_LABS
+}
+
+enum Gender {
+  Male
+  Female
+}
