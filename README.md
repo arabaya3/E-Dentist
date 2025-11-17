@@ -76,85 +76,149 @@ A minimal UI for controlling voice sessions:
 ```
 E-Dentis_realtime/
 │
+├── public/
+│   ├── favicon.ico
+│   ├── index.html
+│   └── robots.txt
+│
 ├── src/
+│   ├── App.tsx
+│   ├── App.scss
+│   ├── index.tsx
+│   ├── index.css
+│   ├── react-app-env.d.ts
+│   ├── setupProxy.js
+│   ├── setupTests.ts
+│   │
 │   ├── components/
 │   │   ├── simple-voice/
-│   │   │   ├── VoiceAgentBootstrap.tsx     → AI bootstrap + system prompt config
-│   │   │   ├── SimpleVoiceConsole.tsx      → Primary voice interaction UI
-│   │   │   ├── ControlTray.tsx             → Audio/video/screen controller
-│   │   │   ├── AudioPulse.tsx              → Audio peak visualization
-│   │   │   └── SimpleVoiceConsole.scss     → UI styling
+│   │   │   ├── VoiceAgentBootstrap.tsx
+│   │   │   ├── SimpleVoiceConsole.tsx
+│   │   │   ├── ControlTray.tsx
+│   │   │   ├── AudioPulse.tsx
+│   │   │   └── SimpleVoiceConsole.scss
 │   │   │
-│   │   ├── dashboard/
-│   │   │   ├── AIDashboard.tsx             → Operational analytics dashboard
-│   │   │   ├── AnalyticsDashboard.tsx      → System performance metrics
-│   │   │   ├── AnalyticsOrchestrator.tsx   → LLM-driven analytics bridge
-│   │   │   └── Altair.tsx                  → Altair/Vega chart renderer
+│   │   ├── ai-dashboard/
+│   │   │   ├── ai-dashboard.scss
+│   │   │   └── AIDashboard.tsx
+│   │   │
+│   │   ├── altair/
+│   │   │   └── Altair.tsx
+│   │   │
+│   │   ├── analytics/
+│   │   │   ├── analytics-dashboard.scss
+│   │   │   ├── AnalyticsDashboard.tsx
+│   │   │   └── AnalyticsOrchestrator.tsx
+│   │   │
+│   │   ├── audio-pulse/
+│   │   │   ├── audio-pulse.scss
+│   │   │   └── AudioPulse.tsx
+│   │   │
+│   │   ├── control-tray/
+│   │   │   ├── control-tray.scss
+│   │   │   └── ControlTray.tsx
 │   │   │
 │   │   ├── logger/
-│   │   │   ├── Logger.tsx                  → Log viewer for LLM events
+│   │   │   ├── Logger.tsx
 │   │   │   ├── mock-logs.ts
 │   │   │   └── logger.scss
 │   │   │
-│   │   ├── settings/
-│   │   │   ├── SettingsDialog.tsx          → Voice & system configuration UI
-│   │   │   ├── VoiceSelector.tsx           → Choose prebuilt LLM voice
-│   │   │   ├── ResponseModalitySelector.tsx→ Choose audio/text response mode
-│   │   │   └── SCSS styles
+│   │   ├── settings-dialog/
+│   │   │   ├── settings-dialog.scss
+│   │   │   ├── SettingsDialog.tsx
+│   │   │   ├── VoiceSelector.tsx
+│   │   │   └── ResponseModalitySelector.tsx
 │   │   │
 │   │   └── side-panel/
-│   │       └── SidePanel.tsx               → Developer console (LLM logs)
+│   │       ├── side-panel.scss
+│   │       └── SidePanel.tsx
 │   │
 │   ├── contexts/
-│   │   └── LiveAPIContext.tsx              → Central provider for Gemini Live API
+│   │   └── LiveAPIContext.tsx
 │   │
 │   ├── hooks/
-│   │   ├── use-live-api.ts                 → WebSocket + realtime streaming logic
+│   │   ├── use-live-api.ts
 │   │   ├── use-webcam.ts
 │   │   ├── use-screen-capture.ts
 │   │   ├── use-media-stream-mux.ts
 │   │   └── useAnalyticsBridge.ts
 │   │
 │   ├── lib/
-│   │   ├── audio-recorder.ts               → Raw PCM mic recorder
-│   │   ├── audio-streamer.ts               → Audio streaming engine
-│   │   ├── audio-utils.ts                  → PCM encoding helpers
-│   │   ├── gemini-voice-engine.ts          → Voice engine (LLM + TTS)
-│   │   ├── genai-live-client.ts            → Custom LiveAPI client wrapper
-│   │   ├── audioworklet-registry.ts        → AudioWorklet loaders
-│   │   ├── utils.ts                        → Utility collection
-│   │   ├── vol-meter.ts                    → Audio volume analyzer
-│   │   └── store-logger.ts                 → Zustand logger store
+│   │   ├── audio-recorder.ts
+│   │   ├── audio-streamer.ts
+│   │   ├── audio-utils.ts
+│   │   ├── audioworklet-registry.ts
+│   │   ├── genai-live-client.ts
+│   │   ├── security.ts
+│   │   ├── store-logger.ts
+│   │   ├── utils.ts
+│   │   ├── vol-meter.ts
+│   │   │
+│   │   ├── voice-engine/
+│   │   │   ├── index.ts
+│   │   │   ├── audio-utils.ts
+│   │   │   └── gemini-voice-engine.ts
+│   │   │
+│   │   └── worklets/
+│   │       ├── audio-processing.ts
+│   │       └── vol-meter.ts
 │   │
 │   ├── ai/
-│   │   ├── language.ts                     → Language detection (AR/EN)
-│   │   ├── pmsIntegration.ts               → Clinic PMS integration logic
-│   │   ├── auth.ts                         → Agent authentication logic
-│   │   └── security.ts                     → Sanitization & validation
+│   │   ├── language.ts
+│   │   ├── pmsIntegration.ts
+│   │   ├── auth.ts
+│   │   ├── security.ts
+│   │   │
+│   │   ├── nlp/
+│   │   │   └── conversation-manager.ts
+│   │   │
+│   │   ├── analytics/
+│   │   │   └── index.ts
+│   │   │
+│   │   ├── dashboard/
+│   │   │   ├── ai-dashboard.scss
+│   │   │   ├── AIDashboard.tsx
+│   │   │   ├── analytics-dashboard.scss
+│   │   │   ├── AnalyticsDashboard.tsx
+│   │   │   ├── AnalyticsOrchestrator.tsx
+│   │   │   └── index.ts
+│   │   │
+│   │   ├── integrations/
+│   │   │   └── index.ts
+│   │   │
+│   │   └── voice/
+│   │       └── index.ts
 │   │
-│   ├── services/
-│   │   └── conversation_manager.ts         → Conversation flow manager
-│   │
-│   ├── App.tsx / index.tsx                 → App root
-│   └── SCSS & CSS files
+│   └── utils/
+│       └── language.ts
 │
 ├── server/
-│   ├── db.ts                               → Prisma connector
-│   ├── dbBookingIntegration.ts             → DB-based booking management
-│   ├── pmsIntegration.ts                   → PMS tool functions
-│   ├── analytics-engine.js                 → Backend analytics pipeline
-│   ├── security.ts                         → Security rules
-│   └── auth.ts
+│   ├── data/
+│   │   └── audit-log.ndjson
+│   │
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   ├── seed.ts
+│   │   └── migrations/
+│   │       └── migration_lock.toml
+│   │
+│   ├── .env
+│   ├── auth.ts
+│   ├── db.ts
+│   ├── dbBookingIntegration.ts
+│   ├── pmsIntegration.ts
+│   ├── analytics-engine.js
+│   ├── security.ts
+│   └── audit-logger.ts? (من الصورة قد يكون موجود)
 │
-├── prisma/
-│   ├── schema.prisma                       → DB schema (doctors, bookings, content)
-│   ├── migration_lock.toml
-│   └── seed.ts
-│
-├── public/                                 → Static assets
 ├── package.json
+├── package-lock.json
+├── .gitignore
 ├── tsconfig.json
+├── LICENSE
+├── .env
 └── README.md
+
 ```
 
 ## 🔐 Google Service Account Setup (Required)
