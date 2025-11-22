@@ -7,6 +7,25 @@ import {
 } from "@google/genai";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { GEMINI_LIVE_MODEL } from "../../config";
+const functions = [
+  {
+    name: "create_booking",
+    description: "Create a new appointment in the dentist clinic database",
+    parameters: {
+      type: "object",
+      properties: {
+        doctor_name: { type: "string" },
+        clinic_branch: { type: "string" },
+        patient_name: { type: "string" },
+        patient_phone: { type: "string" },
+        service_type: { type: "string" },
+        appointment_date: { type: "string" },
+        appointment_time: { type: "string" }
+      },
+      required: ["doctor_name", "clinic_branch", "patient_name", "appointment_date", "appointment_time"]
+    }
+  }
+];
 
 const renderAltairDeclaration: FunctionDeclaration = {
   name: "render_altair",
@@ -23,6 +42,8 @@ const renderAltairDeclaration: FunctionDeclaration = {
     required: ["json_graph"],
   },
 };
+
+
 
 const DEFAULT_AR_GREETING =
   "مرحباً! أنا eDentist.AI، مساعد الحجوزات الذكي للعيادات السنية. أستطيع مساعدتك في حجز، تعديل، أو إلغاء المواعيد بالإضافة إلى الإجابة عن أسئلة الخدمات.";
@@ -122,6 +143,24 @@ export default function VoiceAgentBootstrap() {
               text: `You are eDentist.AI — a bilingual (Arabic/English) voice concierge representing ${clinicName}.
 
 Active concierge persona: ${conciergeName}.
+When responding in Arabic:
+- You MUST NEVER use Arabic or Western digits (0-9). Not in any form. 
+- You MUST convert every number into full written Arabic words.
+- You MUST convert times into natural spoken Arabic (3:30 → "الثالثة والنصف", 4:15 → "الرابعة والربع", 5:45 → "السادسة إلا ربع").
+- You MUST convert dates into full written Arabic form (25/11/2025 → "الخامس والعشرون من نوفمبر عام ألفين وخمسة وعشرون").
+- You MUST convert phone numbers digit-by-digit into words (0791234567 → "صفر سبعة تسعة واحد اثنان ثلاثة أربعة خمسة ستة سبعة").
+- You MUST convert all durations and countdowns to Arabic words (60 minutes → "ستون دقيقة", 2 hours → "ساعتان").
+- If ANY digit appears in your output, consider it a violation and regenerate the line using words only.
+## Arabic Dialect Handling
+When the caller speaks Arabic, you MUST automatically detect their dialect
+(Jordanian, Palestinian, Saudi, Emirati, Kuwaiti, Egyptian, Levantine, Iraqi, or neutral MSA)
+based on their first 1–2 messages.
+
+Then:
+- Respond in the SAME dialect the caller uses.
+- Keep the tone natural and human-like.
+- Do NOT switch dialects unless the caller changes dialect or explicitly requests a different tone.
+
 
 Session kickoff:
 - If the caller greets in Arabic, respond with this stored clinic greeting: """${arabicGreeting}"""

@@ -16,6 +16,12 @@ const { issueJWT, verifyJWT, requireScope } = require('../server/auth.ts');
 const { systemMetrics } = require('../server/systemMetrics.ts');
 const { recordAuditEvent } = require('../server/audit-logger.ts');
 const { getActiveAgentProfile } = require('../server/dbBookingIntegration.ts');
+const{
+   createBookingViaDB,
+  updateBookingViaDB,
+  cancelBookingViaDB,
+}= require('../server/dbBookingIntegration.ts');
+
 
 function parseJson(req) {
   return new Promise((resolve, reject) => {
@@ -164,6 +170,73 @@ module.exports = function setupAnalyticsProxy(app) {
       systemMetrics.record('agent.config', Date.now() - started, statusCode ?? res.statusCode);
     }
   });
+    // ==========================
+  //  CREATE BOOKING (DB)
+  // ==========================
+  app.post('/api/db/book', async (req, res) => {
+    try {
+      const data = await parseJson(req);
+
+      const result = await createBookingViaDB(data);
+
+      return res.json({
+        success: true,
+        booking: result,
+      });
+    } catch (err) {
+      console.error('DB Book Error:', err);
+      return res.status(500).json({
+        success: false,
+        error: err.message,
+      });
+    }
+  });
+    // ==========================
+  //  UPDATE BOOKING (DB)
+  // ==========================
+  app.post('/api/db/update', async (req, res) => {
+    try {
+      const data = await parseJson(req);
+
+      const result = await updateBookingViaDB(data);
+
+      return res.json({
+        success: true,
+        updated: result,
+      });
+    } catch (err) {
+      console.error('DB Update Error:', err);
+      return res.status(500).json({
+        success: false,
+        error: err.message,
+      });
+    }
+  });
+    // ==========================
+  //  CANCEL BOOKING (DB)
+  // ==========================
+  app.post('/api/db/cancel', async (req, res) => {
+    try {
+      const data = await parseJson(req);
+
+      const result = await cancelBookingViaDB(data);
+
+      return res.json({
+        success: true,
+        canceled: result,
+      });
+    } catch (err) {
+      console.error('DB Cancel Error:', err);
+      return res.status(500).json({
+        success: false,
+        error: err.message,
+      });
+    }
+  });
+
+
+
+
 
   app.post('/api/analytics/events', async (req, res) => {
     const started = Date.now();
@@ -527,5 +600,7 @@ module.exports = function setupAnalyticsProxy(app) {
       systemMetrics.record('pms.performance', Date.now() - started, statusCode ?? res.statusCode);
     }
   });
+
+  
 };
 

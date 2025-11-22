@@ -16,7 +16,12 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "src/**/*"],
+  "include": [
+    "src",
+    "src/**/*",
+    "server",
+    "server/**/*"
+  ],
   "ts-node": {
     "compilerOptions": {
       "module": "commonjs"

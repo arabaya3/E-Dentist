@@ -25,8 +25,8 @@ import {
   updateBookingViaDB,
   cancelBookingViaDB,
   getAvailableDoctors,
-  fetchClinicContent,
-} from "../../server/dbBookingIntegration";
+
+} from "../../server/dbBookingIntegration.ts";
 import {
   detectPreferredLanguage,
   joinByLanguage,
@@ -296,10 +296,10 @@ If the user asks anything outside allowed scope:
     ) {
       let greetingReply: string | null = null;
       try {
-        const dbGreeting = await fetchClinicContent("initial.greeting", language);
-        if (dbGreeting && dbGreeting.trim().length) {
-          greetingReply = dbGreeting.trim();
-        }
+greetingReply = prefersArabic
+  ? "مرحباً! أنا eDentist.AI، مساعد الحجوزات الذكي للعيادات السنية. كيف أقدر أساعدك اليوم؟"
+  : "Hello! I’m eDentist.AI, your dental clinic assistant. How can I help you today?";
+
       } catch (error) {
         console.warn("Failed to load initial greeting from database:", error);
       }
@@ -374,7 +374,6 @@ If the user asks anything outside your allowed domain:
     • Only after receiving the OTP can the assistant continue with canceling or rescheduling.
 
 `
-
             },
           ],
         },
@@ -877,25 +876,14 @@ If the user asks anything outside your allowed domain:
     }
   }
 
-  private async renderTemplate(
-    slug: string,
-    locale: "ar" | "en",
-    params: Record<string, string>
-  ): Promise<string | null> {
-    try {
-      const template = await fetchClinicContent(slug, locale);
-      if (!template) {
-        return null;
-      }
-      return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_match, key) => {
-        const value = params[key];
-        return value !== undefined ? value : "";
-      });
-    } catch (error) {
-      console.warn("Failed to fetch template:", error);
-      return null;
-    }
-  }
+private async renderTemplate(
+  slug: string,
+  locale: "ar" | "en",
+  params: Record<string, string>
+): Promise<string | null> {
+  return null; // تعطيل الميزات الديناميكية
+}
+
 
   private buildBookingPayload(): BookingPayload {
     const name = this.parseName(this.ensureEntity("customerName"));

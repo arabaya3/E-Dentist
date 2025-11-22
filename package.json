@@ -5,9 +5,12 @@
     "@google/genai": "^0.14.0",
     "@prisma/client": "^6.19.0",
     "classnames": "^2.5.1",
+    "cors": "^2.8.5",
     "date-fns": "^3.6.0",
     "dotenv-flow": "^4.1.0",
     "eventemitter3": "^5.0.1",
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^3.0.5",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "mysql2": "^3.15.3",
@@ -32,10 +35,12 @@
     "test:audio": "ts-node --transpile-only scripts/gemini-audio-smoke.ts",
     "test:voice-engine": "ts-node --transpile-only scripts/voice-engine-smoke.ts",
     "demo:conversation": "ts-node --transpile-only scripts/conversation-demo.ts",
-    "eject": "react-scripts eject"
-  },
-  "prisma": {
-    "seed": "ts-node --transpile-only prisma/seed.ts"
+    "eject": "react-scripts eject",
+    "start:backend": "node server/index.js",
+
+    "prisma:generate": "prisma generate",
+    "prisma:db-push": "prisma db push",
+    "prisma:migrate-dev": "prisma migrate dev"
   },
   "eslintConfig": {
     "extends": [

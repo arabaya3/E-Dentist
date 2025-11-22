@@ -383,20 +383,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import {
   Content,
   GenerateContentResponse,
@@ -499,12 +485,12 @@ const VOICE_PRESETS: Record<VoiceProfile, VoicePreset> = {
 };
 
 const STT_SYSTEM_PROMPT: Record<SupportedLocale, string> = {
-  en: `Transcribe the call audio verbatim in English. 
+  en: `Transcribe the call audio verbatim in English.
 - Preserve dental terminology.
 - Output plain UTF-8 text without timestamps or markdown.
 - If the caller switches to Arabic, note "[AR]: <text>" inline.`,
 
-  ar: `Transcribe the call audio verbatim in Modern Standard Arabic. 
+  ar: `Transcribe the call audio verbatim in Modern Standard Arabic.
 - Respond only with the transcript (no instructions or commentary).
 - When callers insert English words, keep them in brackets.`,
 };
@@ -517,23 +503,47 @@ const DEFAULT_STT_MODEL =
 const DEFAULT_TTS_MODEL =
   GEMINI_LIVE_MODEL || "models/gemini-2.0-flash-exp";
 
-// === 🔥 تحويل الأرقام الإنجليزية → عربية مكتوبة نصياً ===
-function convertNumbersToArabicWords(text: string): string {
-  const numbersMap: Record<string, string> = {
-    "0": "صفر",
-    "1": "واحد",
-    "2": "اثنان",
-    "3": "ثلاثة",
-    "4": "أربعة",
-    "5": "خمسة",
-    "6": "ستة",
-    "7": "سبعة",
-    "8": "ثمانية",
-    "9": "تسعة",
+
+// =============================================
+//  🔥 دالة تحويل الأرقام الإنجليزية → أرقام عربية
+// =============================================
+function convertArabicTextDigits(text: string): string {
+  if (!text) return text;
+
+  const safe: Record<string, string> = {};
+  let i = 0;
+
+  // حفظ OTP و رقم الهاتف 4–15 digits بدون تحويل
+  text = text.replace(/\b\d{4,15}\b/g, (match) => {
+    const key = `__SAFE_${i++}__`;
+    safe[key] = match;
+    return key;
+  });
+
+  const map: Record<string, string> = {
+    "0": "٠",
+    "1": "١",
+    "2": "٢",
+    "3": "٣",
+    "4": "٤",
+    "5": "٥",
+    "6": "٦",
+    "7": "٧",
+    "8": "٨",
+    "9": "٩",
   };
 
-  return text.replace(/\d/g, (d) => numbersMap[d] || d);
+  // تحويل كل رقم فردي
+  text = text.replace(/\d/g, (d) => map[d]);
+
+  // إعادة الأرقام الحساسة زي ما هي
+  for (const key in safe) {
+    text = text.replace(key, safe[key]);
+  }
+
+  return text;
 }
+
 
 // performance fallback
 const now =
@@ -644,13 +654,16 @@ export class GeminiVoiceEngine {
     request: SynthesisRequest
   ): Promise<SynthesisResult> {
     const startedAt = now();
+let finalText = request.text;
+const hasArabicChars = /[\u0600-\u06FF]/.test(finalText);
 
-    let finalText = request.text;
+if (request.locale === "ar" || hasArabicChars) {
+  finalText = convertArabicTextDigits(finalText);
+}
 
-    // === 🔥 أهم تعديل: تحويل الأرقام لنطق عربي ===
-    if (request.locale === "ar") {
-      finalText = convertNumbersToArabicWords(finalText);
-    }
+
+    console.log("📝 [TTS-IN] Original:", request.text);
+    console.log("🔢 [TTS-IN] Arabic Digits:", finalText);
 
     const voiceId =
       (request.voice as VoiceProfile) ??
@@ -734,8 +747,8 @@ export class GeminiVoiceEngine {
   }
 }
 
-// fallback
 export const GEMINI_VOICE_ENGINE_FALLBACK =
   GEMINI_LIVE_MODEL_SOURCE === "fallback"
     ? GEMINI_LIVE_MODEL
     : undefined;
+
