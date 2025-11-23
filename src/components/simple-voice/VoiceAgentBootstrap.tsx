@@ -398,12 +398,7 @@ function normalizeToolCalls(
           name: call.name,
           args: (call.args as Record<string, unknown>) ?? {},
         };
-        // Debug: Log what we're extracting
-        console.log(`[voice-agent] Normalized tool call:`, {
-          name: normalized.name,
-          args: normalized.args,
-          rawArgs: call.args,
-        });
+        // Normalized tool call extracted
         return normalized;
       });
   }
@@ -673,10 +668,7 @@ REMEMBER: Database is the ONLY source of truth. Always use tools. Never hallucin
         // Handle MCP tools - route to backend
         if (MCP_TOOL_NAMES.has(call.name)) {
           try {
-            console.log(
-              `[voice-agent] Calling MCP tool: ${call.name}`,
-              call.args
-            );
+            // Calling MCP tool via backend bridge
 
             // Call backend MCP bridge
             const result = await callBackendTool(call.name, call.args ?? {});
@@ -715,9 +707,7 @@ REMEMBER: Database is the ONLY source of truth. Always use tools. Never hallucin
               ],
             });
 
-            console.log(
-              `[voice-agent] MCP tool ${call.name} completed successfully`
-            );
+            // MCP tool call completed
           } catch (error) {
             const message =
               error instanceof Error ? error.message : "Unknown MCP error";

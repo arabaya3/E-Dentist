@@ -171,7 +171,6 @@ module.exports = function setupAnalyticsProxy(app) {
     let statusCode = 500;
     try {
       const args = await parseJson(req);
-      console.log(`[mcp-proxy] Calling tool: ${req.params.toolName}`, args);
       const result = await callMcpTool(req.params.toolName, args);
       statusCode = 200;
       res.json(result);

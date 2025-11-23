@@ -1,402 +1,540 @@
+# 🦷 E-Dentist Realtime — Voice AI Agent for Jordanian Dental Clinics
 
-# 📘 **E-Dentis_realtime — Realtime Voice AI Agent for Dental Clinics**
+**E-Dentist Realtime** is a production-ready real-time voice AI agent built for dental clinics in Jordan. Powered by **Gemini Live API** and **Model Context Protocol (MCP)**, it enables instant, natural, bilingual (Arabic/English) voice conversations for booking appointments, managing clinic operations, and assisting patients in real time.
 
-**E-Dentis_realtime** is a production-ready **realtime voice AI agent** built for dental clinics.
-Powered by **Gemini Live API**, it enables instant, natural, bilingual (Arabic/English) voice conversations for booking appointments, answering clinic FAQs, and assisting patients in real time.
-
-This project includes a complete **voice engine**, **LLM agent layer**, **realtime audio streaming**, **tool-calling**, **PMS integration**, **analytics dashboards**, and **a developer console**.
-
-A fully modular, scalable, and customizable system suitable for real-world clinic operations.
+This project includes a complete **voice engine**, **MCP-backed database operations**, **real-time audio streaming**, **tool-calling**, **analytics dashboards**, and **a developer console**.
 
 ---
 
-# 🚀 Features
+## 🏗 Architecture
 
-### 🎤 **Realtime Voice Assistant**
+The system follows a clean, production-ready architecture:
 
-* Live PCM streaming (16 kHz)
-* Ultra-low-latency LLM responses
-* High-quality AI speech output
-* Full Arabic + English support
-* Intelligent language detection
+```
+Frontend (React)
+    ↓
+Gemini Live Agent
+    ↓
+MCP Tool Calls (via /api/mcp/tools/*)
+    ↓
+MCP Server (Node stdio)
+    ↓
+Prisma ORM
+    ↓
+MySQL Database
+```
 
-### 📅 **Smart Appointment Handling**
+### Key Components
 
-* Create / modify / cancel appointments
-* Required fields validation (name, phone, service)
-* Dentist suggestions & alternatives
-* Fully integrated PMS/CRM module (mock or real)
+- **Frontend**: React + TypeScript application with Gemini Live integration
+- **Voice Agent**: `VoiceAgentBootstrap.tsx` - Handles all tool calls and routes them to the backend
+- **MCP Bridge**: Backend REST endpoint (`/api/mcp/tools/:toolName`) that forwards tool calls to the MCP server
+- **MCP Server**: Standalone Node.js server (`mcp-server/`) that exposes database operations as MCP tools
+- **Database**: MySQL with Prisma ORM for type-safe database access
 
-### 🧠 **Intelligent Agent Layer**
+---
 
-* Dynamic system instructions
-* Tool-calling integration (Altair, PMS tools)
-* Conversation state manager
-* Sanitization & safety filters
+## ✨ Features
 
-### 🎛 **Simple Voice Console**
+### 🎤 Real-time Voice Assistant
+
+- Live PCM streaming (16 kHz)
+- Ultra-low-latency LLM responses
+- High-quality AI speech output
+- Full Arabic + English support
+- Intelligent language detection
+
+### 📅 Smart Appointment Management
+
+- Create, update, and cancel appointments via MCP tools
+- Required fields validation (name, phone, service)
+- Doctor and clinic lookups
+- Real-time database operations
+
+### 🧠 MCP-Powered Database Operations
+
+All database operations are exposed as MCP tools:
+
+- **Appointment Management**: `create_appointment`, `update_appointment`, `cancel_appointment`
+- **Clinic & Doctor Lookups**: `list_clinics`, `list_doctors`
+- **User Management**: `find_user_by_phone`, `find_user_by_name`, `list_user_appointments`
+- **Search & Validation**: `search_appointments`, `validate_voucher`
+- **Analytics**: `log_voice_call`
+
+### 🎛 Simple Voice Console
 
 A minimal UI for controlling voice sessions:
 
-* Start/End session
-* Mute microphone
-* Live audio meters
-* Connection status & errors
-* Bilingual hint messages
+- Start/End session
+- Mute microphone
+- Live audio meters
+- Connection status & errors
+- Bilingual hint messages
 
-### 📊 **Advanced Analytics Dashboard**
+### 📊 Advanced Analytics Dashboard
 
-* Session metrics
-* Latency, hallucination rate, success rate
-* Realtime logs
-* Sentiment tracking
-* Tool usage breakdown
-* Altair charts powered by LLM
+- Session metrics
+- Latency tracking
+- Tool usage breakdown
+- Real-time logs
+- Sentiment tracking
 
-### 🧰 **Developer Console + Logging**
+### 🔒 Security
 
-* SidePanel console
-* Full streaming logs
-* Tool calls & responses
-* LLM tokens, messages, and events
-* Debuggable in realtime
-
-### 🔒 **Security**
-
-* Input sanitization
-* Safe function calling
-* Auth hooks
-* Config isolation
-* Logging safeguards
+- Input sanitization
+- Safe function calling
+- JWT authentication for analytics
+- Config isolation
+- Logging safeguards
 
 ---
 
-# 🏗 Architecture Overview
+## 🚀 Getting Started
 
-```
-E-Dentis_realtime/
-│
-├── public/
-│   ├── favicon.ico
-│   ├── index.html
-│   └── robots.txt
-│
-├── src/
-│   ├── App.tsx
-│   ├── App.scss
-│   ├── index.tsx
-│   ├── index.css
-│   ├── react-app-env.d.ts
-│   ├── setupProxy.js
-│   ├── setupTests.ts
-│   │
-│   ├── components/
-│   │   ├── simple-voice/
-│   │   │   ├── VoiceAgentBootstrap.tsx
-│   │   │   ├── SimpleVoiceConsole.tsx
-│   │   │   ├── ControlTray.tsx
-│   │   │   ├── AudioPulse.tsx
-│   │   │   └── SimpleVoiceConsole.scss
-│   │   │
-│   │   ├── ai-dashboard/
-│   │   │   ├── ai-dashboard.scss
-│   │   │   └── AIDashboard.tsx
-│   │   │
-│   │   ├── altair/
-│   │   │   └── Altair.tsx
-│   │   │
-│   │   ├── analytics/
-│   │   │   ├── analytics-dashboard.scss
-│   │   │   ├── AnalyticsDashboard.tsx
-│   │   │   └── AnalyticsOrchestrator.tsx
-│   │   │
-│   │   ├── audio-pulse/
-│   │   │   ├── audio-pulse.scss
-│   │   │   └── AudioPulse.tsx
-│   │   │
-│   │   ├── control-tray/
-│   │   │   ├── control-tray.scss
-│   │   │   └── ControlTray.tsx
-│   │   │
-│   │   ├── logger/
-│   │   │   ├── Logger.tsx
-│   │   │   ├── mock-logs.ts
-│   │   │   └── logger.scss
-│   │   │
-│   │   ├── settings-dialog/
-│   │   │   ├── settings-dialog.scss
-│   │   │   ├── SettingsDialog.tsx
-│   │   │   ├── VoiceSelector.tsx
-│   │   │   └── ResponseModalitySelector.tsx
-│   │   │
-│   │   └── side-panel/
-│   │       ├── side-panel.scss
-│   │       └── SidePanel.tsx
-│   │
-│   ├── contexts/
-│   │   └── LiveAPIContext.tsx
-│   │
-│   ├── hooks/
-│   │   ├── use-live-api.ts
-│   │   ├── use-webcam.ts
-│   │   ├── use-screen-capture.ts
-│   │   ├── use-media-stream-mux.ts
-│   │   └── useAnalyticsBridge.ts
-│   │
-│   ├── lib/
-│   │   ├── audio-recorder.ts
-│   │   ├── audio-streamer.ts
-│   │   ├── audio-utils.ts
-│   │   ├── audioworklet-registry.ts
-│   │   ├── genai-live-client.ts
-│   │   ├── security.ts
-│   │   ├── store-logger.ts
-│   │   ├── utils.ts
-│   │   ├── vol-meter.ts
-│   │   │
-│   │   ├── voice-engine/
-│   │   │   ├── index.ts
-│   │   │   ├── audio-utils.ts
-│   │   │   └── gemini-voice-engine.ts
-│   │   │
-│   │   └── worklets/
-│   │       ├── audio-processing.ts
-│   │       └── vol-meter.ts
-│   │
-│   ├── ai/
-│   │   ├── language.ts
-│   │   ├── pmsIntegration.ts
-│   │   ├── auth.ts
-│   │   ├── security.ts
-│   │   │
-│   │   ├── nlp/
-│   │   │   └── conversation-manager.ts
-│   │   │
-│   │   ├── analytics/
-│   │   │   └── index.ts
-│   │   │
-│   │   ├── dashboard/
-│   │   │   ├── ai-dashboard.scss
-│   │   │   ├── AIDashboard.tsx
-│   │   │   ├── analytics-dashboard.scss
-│   │   │   ├── AnalyticsDashboard.tsx
-│   │   │   ├── AnalyticsOrchestrator.tsx
-│   │   │   └── index.ts
-│   │   │
-│   │   ├── integrations/
-│   │   │   └── index.ts
-│   │   │
-│   │   └── voice/
-│   │       └── index.ts
-│   │
-│   └── utils/
-│       └── language.ts
-│
-├── server/
-│   ├── data/
-│   │   └── audit-log.ndjson
-│   │
-│   ├── prisma/
-│   │   ├── schema.prisma
-│   │   ├── seed.ts
-│   │   └── migrations/
-│   │       └── migration_lock.toml
-│   │
-│   ├── .env
-│   ├── auth.ts
-│   ├── db.ts
-│   ├── dbBookingIntegration.ts
-│   ├── pmsIntegration.ts
-│   ├── analytics-engine.js
-│   ├── security.ts
-│   └── audit-logger.ts? (من الصورة قد يكون موجود)
-│
-├── package.json
-├── package-lock.json
-├── .gitignore
-├── tsconfig.json
-├── LICENSE
-├── .env
-└── README.md
+### Prerequisites
 
+- Node.js 18+ and npm
+- MySQL 8.0+
+- Gemini API key from Google AI Studio
+
+### Installation
+
+1. **Clone the repository**
+
+```bash
+git clone https://github.com/arabaya3/E-Dentist.git
+cd E-Dentist_realtime
 ```
 
-## 🔐 Google Service Account Setup (Required)
-
-To use **Google Cloud Services** (Gemini API, Realtime, etc.), you must create and add your **own** credentials file.
-
-⚠️ **Important:**
-`app-setting.json` is **NOT included** in the repo because it contains private keys.
-Every developer must generate their own Google Service Account key.
-
----
-
-### ✅ 1. Create a Google Service Account
-
-1. Go to Google Cloud Console:
-   [https://console.cloud.google.com/iam-admin/serviceaccounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
-2. Click **“Create Service Account”**
-3. Choose a name (example: `e-dentist-agent`)
-4. Assign role → **Editor**
-5. Save
-
----
-
-### ✅ 2. Generate the Service Account Key
-
-1. Open the service account you created
-2. Go to the **Keys** tab
-3. Click: **Add Key → Create New Key → JSON**
-4. Download the JSON file
-5. Rename it to:
-
-```
-app-setting.json
-```
-Move it to the **project root**:
-
-```
-/E-Dentis_realtime/app-setting.json
-```
-
----
-
-### ✅Update `.env`
-
-Make sure your `.env` file contains:
-
-```ini
-GOOGLE_APPLICATION_CREDENTIALS=./app-setting.json
-```
-
----
-
-### ✅ Ensure It’s Ignored by Git
-
-Your `.gitignore` must include:
-
-```markdown
-app-setting.json
-*.key
-*.pem
-```
-
-# ⚙️ Installation
-
-### 1. Install dependencies
+2. **Install dependencies**
 
 ```bash
 npm install
 ```
 
-### 2. Prepare the database
+3. **Set up environment variables**
+
+Create a `.env` file in the project root:
+
+```ini
+# Gemini API Configuration
+GEMINI_API_KEY=your_gemini_api_key_here
+REACT_APP_GEMINI_API_KEY=your_gemini_api_key_here
+
+# Database Configuration
+DATABASE_URL=mysql://user:password@localhost:3306/edentist
+
+# Authentication & Security
+EDENTIST_AUTH_CLIENT_ID=your_client_id
+EDENTIST_AUTH_CLIENT_SECRET=your_client_secret
+EDENTIST_JWT_SECRET=your_jwt_secret_here
+EDENTIST_AES_PASSPHRASE=your_aes_passphrase
+EDENTIST_AES_KEY=your_aes_key
+
+# Analytics (Optional - disabled in development)
+REACT_APP_ENABLE_ANALYTICS=false
+
+# Server Configuration
+PORT=5000
+NODE_ENV=development
+```
+
+4. **Set up the database**
 
 ```bash
+# Run migrations
 npx prisma migrate deploy
+
+# Seed the database with realistic Jordanian clinic data
 npx prisma db seed
 ```
 
-### 3. Configure environment variables
-
-Create a **.env** file:
-
-```
-GEMINI_API_KEY=your_google_key
-DATABASE_URL=postgresql://user:password@host:port/db
-PMS_PROVIDER_KEY=mock
-JWT_SECRET=your_jwt_secret
-ANALYTICS_MODE=enabled
-```
-
-### 4. Start the development server
+5. **Build the MCP server**
 
 ```bash
-npm run dev
+npm run build:mcp
 ```
 
-### 5. Open the app
+6. **Start the development servers**
+
+```bash
+# Terminal 1: Start the backend server
+npm run start:backend
+
+# Terminal 2: Start the React frontend
+npm start
+```
+
+7. **Open the application**
+
+Navigate to `http://localhost:3000` in your browser.
+
+---
+
+## 📋 MCP Tools Reference
+
+All database operations are exposed as MCP tools. The Gemini Live agent automatically calls these tools when needed.
+
+### Appointment Tools
+
+#### `create_appointment`
+
+Creates a new appointment in the database.
+
+**Parameters:**
+- `doctorName` (string, required): Name of the doctor
+- `clinicBranch` (string, required): Clinic location or branch
+- `patientName` (string, required): Patient full name
+- `patientPhone` (string, required): Patient contact number
+- `serviceType` (string, required): Requested service (e.g., "Cleaning", "Whitening", "Composite Filling")
+- `appointmentDate` (string, required): Date of the appointment (YYYY-MM-DD)
+- `appointmentTime` (string, required): Time of the appointment (HH:MM)
+- `status` (string, optional): Initial status (e.g., "confirmed", "pending")
+- `notes` (string, optional): Additional notes
+- `otp` (string, optional): Verification code if required
+
+**Example:**
+```json
+{
+  "doctorName": "Dr. Ahmad Al-Rousan",
+  "clinicBranch": "Amman Dental Care – Abdoun",
+  "patientName": "محمد أحمد",
+  "patientPhone": "0791234567",
+  "serviceType": "Cleaning",
+  "appointmentDate": "2024-12-15",
+  "appointmentTime": "10:00",
+  "status": "confirmed"
+}
+```
+
+#### `update_appointment`
+
+Updates an existing appointment.
+
+**Parameters:**
+- `id` (number, required): Appointment ID
+- `doctorName` (string, optional): Updated doctor name
+- `clinicBranch` (string, optional): Updated clinic branch
+- `patientName` (string, optional): Updated patient name
+- `patientPhone` (string, optional): Updated patient phone
+- `serviceType` (string, optional): Updated service type
+- `appointmentDate` (string, optional): Updated date
+- `appointmentTime` (string, optional): Updated time
+- `status` (string, optional): Updated status
+- `notes` (string, optional): Updated notes
+
+#### `cancel_appointment`
+
+Cancels an existing appointment.
+
+**Parameters:**
+- `id` (number, required): Appointment ID
+- `patientName` (string, optional): Patient name for verification
+- `patientPhone` (string, optional): Patient phone for verification
+- `otp` (string, optional): OTP for verification
+
+### Lookup Tools
+
+#### `list_clinics`
+
+Returns a list of all clinics in the database.
+
+**Parameters:** None
+
+#### `list_doctors`
+
+Returns a list of all doctors, optionally filtered by clinic.
+
+**Parameters:**
+- `clinicName` (string, optional): Filter by clinic name
+- `includeClinic` (boolean, optional): Include clinic details in response
+
+#### `find_user_by_phone`
+
+Finds a user by phone number.
+
+**Parameters:**
+- `phone` (string, required): Phone number to search for
+
+#### `find_user_by_name`
+
+Finds users by name (supports partial matches).
+
+**Parameters:**
+- `name` (string, required): Name to search for
+
+#### `list_user_appointments`
+
+Lists all appointments for a specific user.
+
+**Parameters:**
+- `phone` (string, optional): User phone number
+- `name` (string, optional): User name
+- `status` (string, optional): Filter by appointment status
+
+#### `search_appointments`
+
+Searches appointments with various filters.
+
+**Parameters:**
+- `doctorName` (string, optional): Filter by doctor name
+- `clinicBranch` (string, optional): Filter by clinic branch
+- `patientPhone` (string, optional): Filter by patient phone
+- `serviceType` (string, optional): Filter by service type
+- `status` (string, optional): Filter by status
+- `dateFrom` (string, optional): Start date (YYYY-MM-DD)
+- `dateTo` (string, optional): End date (YYYY-MM-DD)
+
+### Utility Tools
+
+#### `validate_voucher`
+
+Validates a voucher code.
+
+**Parameters:**
+- `code` (string, required): Voucher code to validate
+
+#### `log_voice_call`
+
+Logs a voice call interaction for analytics.
+
+**Parameters:**
+- `intent` (string, required): Detected intent
+- `confidence` (number, required): Confidence score (0-1)
+- `duration` (number, optional): Call duration in seconds
+- `collectedData` (object, optional): Additional data collected during the call
+
+---
+
+## 📁 Project Structure
 
 ```
-http://localhost:3000
+E-Dentist_realtime/
+│
+├── public/                 # Static assets
+│   ├── favicon.ico
+│   ├── index.html
+│   └── robots.txt
+│
+├── src/                    # React frontend
+│   ├── components/
+│   │   └── simple-voice/
+│   │       ├── VoiceAgentBootstrap.tsx  # Main voice agent with MCP tool integration
+│   │       ├── SimpleVoiceConsole.tsx
+│   │       └── ...
+│   ├── contexts/
+│   │   └── LiveAPIContext.tsx
+│   ├── hooks/
+│   │   └── useAnalyticsBridge.ts
+│   ├── lib/
+│   │   └── genai-live-client.ts
+│   ├── ai/
+│   │   └── dashboard/     # Analytics dashboard components
+│   ├── setupProxy.js       # Backend proxy with MCP bridge endpoint
+│   └── App.tsx
+│
+├── server/                 # Node.js backend
+│   ├── mcpClient.ts        # MCP client for backend-to-MCP communication
+│   ├── db.ts              # Shared Prisma client
+│   ├── dbBookingIntegration.ts.js  # Agent profile helper
+│   ├── prisma/
+│   │   ├── schema.prisma   # Prisma schema
+│   │   ├── seed.ts         # Database seed with Jordanian clinic data
+│   │   └── migrations/
+│   ├── index.js           # Express server
+│   └── ...
+│
+├── mcp-server/            # MCP Server (standalone)
+│   ├── src/
+│   │   └── index.ts        # MCP server with all tool definitions
+│   ├── dist/              # Compiled MCP server
+│   └── tsconfig.json
+│
+├── mcp.json               # Cursor MCP configuration
+├── package.json
+├── tsconfig.json
+└── README.md
 ```
 
 ---
 
-# 🧪 Usage Examples
+## 🔧 Development
 
-### 🎤 Start a voice session
+### Available Scripts
 
-* Click **Start session**
-* Begin speaking in Arabic or English
-* The assistant answers instantly using Gemini Live
+- `npm start` - Start React development server
+- `npm run start:backend` - Start Node.js backend server
+- `npm run build` - Build React app for production
+- `npm run build:mcp` - Build MCP server TypeScript
+- `npm run start:mcp` - Run MCP server directly (for testing)
+- `npm test` - Run tests
+- `npx prisma migrate dev` - Create and apply new migration
+- `npx prisma db seed` - Seed database with sample data
+- `npx prisma studio` - Open Prisma Studio to view database
 
-### 💬 Ask for bookings
+### MCP Server Development
 
-> “I want to book a cleaning on Sunday at 2 PM.”
+The MCP server is a standalone Node.js application that runs via stdio transport. It's automatically spawned by the backend when tool calls are made.
 
-### 🔄 Modify or cancel an appointment
+To test the MCP server directly:
 
-> “Reschedule my appointment to 4 PM.”
+```bash
+npm run build:mcp
+npm run start:mcp
+```
 
-### 📈 Request analytics
+### Database Schema
 
-> “Show me a graph of appointments by day.”
+The database schema is defined in `server/prisma/schema.prisma`. Key models include:
 
-The agent will call the **render_altair** tool.
+- `User` - Clinic staff and patients
+- `Clinic` - Dental clinic information
+- `Appointment` - Appointment records with raw details stored as JSON
+- `Voucher` - Discount vouchers
+- `Transaction` - Payment transactions
+- `Report` - Patient reports
+- `VoiceCall` - Voice call logs
+- `AgentPageConfig` - Agent configuration
 
----
+### Seed Data
 
-# 🛠 Tech Stack
+The seed file (`server/prisma/seed.ts`) generates realistic Jordanian dental clinic data:
 
-* **React + TypeScript**
-* **Gemini Live API (Streaming LLM)**
-* **WebRTC / MediaStream API**
-* **PCM 16 kHz audio pipeline**
-* **Prisma ORM**
-* **PostgreSQL**
-* **Node.js backend**
-* **Zustand**
-* **Altair / Vega charts**
-* **SCSS modules**
-
----
-
-# 🧭 Roadmap
-
-* [ ] Mobile-friendly UI
-* [ ] Video-call support
-* [ ] WhatsApp voice integration
-* [ ] Real PMS integration (Dentrix, CareStack…)
-* [ ] Export conversation transcripts (PDF)
-* [ ] Multi-agent support
-* [ ] Admin dashboard improvements
-* [ ] Fine-tuned dental FAQ model
+- 5 clinics with Arabic names
+- 5 doctors with specializations
+- 5 patients with Jordanian phone numbers (079/078/077 format)
+- Appointments, vouchers, transactions, and reports
+- All data follows Jordanian naming conventions and phone number formats
 
 ---
 
-# 🐞 Troubleshooting
+## 🧪 Usage Examples
 
-### ❌ Microphone not working
+### Start a Voice Session
 
-→ Check browser permissions
-→ Use HTTPS
-→ Restart the browser
+1. Click **"Start session"** in the UI
+2. Grant microphone permissions
+3. Begin speaking in Arabic or English
+4. The assistant responds instantly using Gemini Live
 
-### ❌ No response from the assistant
+### Book an Appointment
 
-→ Invalid GEMINI_API_KEY
-→ Gemini Live API disabled on your Google project
+**User (Arabic):** "أريد حجز موعد للتنظيف مع د. أحمد الروسان يوم السبت الساعة 10 صباحاً"
 
-### ❌ Appointment not saving
+**Agent:** The agent will:
+1. Call `list_doctors` to verify doctor availability
+2. Call `list_clinics` to find the clinic
+3. Call `create_appointment` with the details
+4. Confirm the appointment in Arabic
 
-→ Check Prisma migrations
-→ Confirm `DATABASE_URL`
-→ Ensure backend server is running
+### Search Appointments
 
-### ❌ Audio lag
+**User:** "Show me all appointments for next week"
 
-→ Check network speed
-→ Ensure 16 kHz PCM
-→ Disable VPNs
+**Agent:** Calls `search_appointments` with date filters and presents the results.
 
+### Cancel Appointment
 
+**User:** "I want to cancel my appointment"
+
+**Agent:** 
+1. Calls `list_user_appointments` to find user's appointments
+2. Calls `cancel_appointment` with verification
+3. Confirms cancellation
+
+---
+
+## 🛠 Tech Stack
+
+- **Frontend**: React 18 + TypeScript
+- **Voice AI**: Gemini Live API (Streaming LLM)
+- **Database Protocol**: Model Context Protocol (MCP)
+- **Database**: MySQL 8.0+ with Prisma ORM
+- **Backend**: Node.js + Express
+- **Audio**: WebRTC / MediaStream API, PCM 16 kHz
+- **State Management**: Zustand
+- **Charts**: Altair / Vega-Lite
+- **Styling**: SCSS modules
+
+---
+
+## 🔐 Security Notes
+
+- All database operations go through MCP tools (no direct frontend DB access)
+- Analytics endpoints require JWT authentication
+- Analytics are disabled in development mode to prevent 401 errors
+- Input sanitization on all user inputs
+- Safe function calling with Zod validation
+
+---
+
+## 🐞 Troubleshooting
+
+### MCP Server Not Found
+
+**Error:** `MCP server not found at ...`
+
+**Solution:**
+```bash
+npm run build:mcp
+```
+
+### Database Connection Issues
+
+**Error:** `Can't reach database server`
+
+**Solution:**
+1. Verify `DATABASE_URL` in `.env`
+2. Ensure MySQL is running
+3. Check network connectivity
+
+### Analytics 401 Errors
+
+**Error:** `POST /api/analytics/events 401 (Unauthorized)`
+
+**Solution:** This is expected in development. Analytics are automatically disabled when `NODE_ENV !== "production"`. To enable in development, set `REACT_APP_ENABLE_ANALYTICS=true` in `.env`.
+
+### Tool Calls Not Working
+
+**Error:** Tool calls from Gemini are not reaching the database
+
+**Solution:**
+1. Verify MCP server is built: `npm run build:mcp`
+2. Check backend logs for MCP connection errors
+3. Verify `/api/mcp/tools/:toolName` endpoint is accessible
+4. Check browser console for tool call errors
+
+### Microphone Not Working
+
+**Solution:**
+- Check browser permissions
+- Use HTTPS (required for microphone access)
+- Restart the browser
+- Check browser console for errors
+
+---
+
+## 📝 License
+
+See [LICENSE](LICENSE) file for details.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please ensure:
+
+1. All database operations use MCP tools (no direct Prisma in frontend)
+2. TypeScript types are correct
+3. Console.log statements are removed (keep only error/warn logs)
+4. README is updated for any architectural changes
+
+---
+
+## 📞 Support
+
+For issues or questions, please open an issue on the GitHub repository.
+
+---
+
+**Built with ❤️ for Jordanian dental clinics**

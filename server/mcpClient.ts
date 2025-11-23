@@ -57,9 +57,6 @@ export async function callMcpTool(
   try {
     const client = await getClient();
     
-    // Debug: Log what we're sending
-    console.log(`[mcp-client] Calling tool ${name} with arguments:`, JSON.stringify(args, null, 2));
-    
     const result = await client.callTool({
       name,
       arguments: args,

@@ -14,8 +14,38 @@ const server = new McpServer({
   version: "1.0.0",
 });
 
-const toNumber = (value: number | string) =>
-  typeof value === "number" ? value : Number.parseInt(value, 10);
+// Maximum safe integer for 64-bit signed integer (MySQL BIGINT)
+const MAX_SAFE_INTEGER_64 = BigInt("9223372036854775807");
+const MIN_SAFE_INTEGER_64 = BigInt("-9223372036854775808");
+
+const toNumber = (value: number | string): number => {
+  if (typeof value === "number") {
+    if (!Number.isInteger(value) || value > Number.MAX_SAFE_INTEGER) {
+      throw new Error(`Invalid number: ${value} exceeds safe integer range`);
+    }
+    return value;
+  }
+  
+  // Parse string to number
+  const parsed = Number.parseInt(value, 10);
+  
+  // Check if parsing was successful
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Invalid ID format: "${value}" is not a valid number`);
+  }
+  
+  // Check if it's within safe integer range (JavaScript's Number.MAX_SAFE_INTEGER)
+  if (parsed > Number.MAX_SAFE_INTEGER || parsed < Number.MIN_SAFE_INTEGER) {
+    throw new Error(`Invalid ID: ${value} exceeds safe integer range (max: ${Number.MAX_SAFE_INTEGER})`);
+  }
+  
+  // Check if it's positive (since appointment IDs should be positive)
+  if (parsed <= 0) {
+    throw new Error(`Invalid ID: ${value} must be a positive integer`);
+  }
+  
+  return parsed;
+};
 
 const respond = (payload: unknown): ToolResult => ({
   content: [{ type: "text", text: JSON.stringify(payload) }],
@@ -42,29 +72,15 @@ const safeTool =
   ) =>
   async (rawInput: unknown): Promise<ToolResult> => {
     try {
-      // Debug: Log what we receive
-      console.log(`[edentist-mcp] Tool ${toolName} received input:`, JSON.stringify(rawInput, null, 2));
-      console.log(`[edentist-mcp] Tool ${toolName} input type:`, typeof rawInput);
-      
-      // When inputSchema is provided, MCP SDK parses and passes the parsed data directly
-      // rawInput should already be the parsed arguments object
+      // Parse and validate input with Zod schema
       let inputToParse = rawInput;
       
-      // If rawInput is undefined or null, use empty object
+      // Handle edge cases for input parsing
       if (inputToParse === undefined || inputToParse === null) {
-        console.warn(`[edentist-mcp] Tool ${toolName} input is undefined/null, using empty object`);
         inputToParse = {};
-      }
-      
-      // If inputToParse is an array, take first element (shouldn't happen, but handle it)
-      if (Array.isArray(inputToParse) && inputToParse.length > 0) {
-        console.warn(`[edentist-mcp] Tool ${toolName} input is array, taking first element`);
+      } else if (Array.isArray(inputToParse) && inputToParse.length > 0) {
         inputToParse = inputToParse[0];
-      }
-      
-      // If inputToParse is a string, try to parse it as JSON
-      if (typeof inputToParse === "string") {
-        console.warn(`[edentist-mcp] Tool ${toolName} input is string, attempting JSON parse`);
+      } else if (typeof inputToParse === "string") {
         try {
           inputToParse = JSON.parse(inputToParse);
         } catch {
@@ -72,9 +88,7 @@ const safeTool =
         }
       }
       
-      console.log(`[edentist-mcp] Tool ${toolName} parsing with schema...`);
       const parsed = schema.parse(inputToParse);
-      console.log(`[edentist-mcp] Tool ${toolName} schema validation passed`);
       const data = await handler(parsed);
       return respondSuccess(data);
     } catch (error) {
@@ -229,7 +243,16 @@ server.registerTool(
       );
     }
 
-    const id = toNumber(appointmentId);
+    let id: number;
+    try {
+      id = toNumber(appointmentId);
+    } catch (error) {
+      return respondError(
+        error instanceof Error 
+          ? error 
+          : new Error(`Invalid appointment ID: ${appointmentId}`)
+      );
+    }
     const existing = await prisma.appointment.findUnique({ where: { id } });
     if (!existing) {
       return respondError(new Error(`Appointment ${id} not found.`));
@@ -262,7 +285,16 @@ server.registerTool(
     inputSchema: cancelAppointmentSchema as any,
   },
   safeTool("cancel_appointment", cancelAppointmentSchema, async ({ appointmentId, ...rest }) => {
-    const id = toNumber(appointmentId);
+    let id: number;
+    try {
+      id = toNumber(appointmentId);
+    } catch (error) {
+      return respondError(
+        error instanceof Error 
+          ? error 
+          : new Error(`Invalid appointment ID: ${appointmentId}`)
+      );
+    }
     const existing = await prisma.appointment.findUnique({ where: { id } });
     if (!existing) {
       return respondError(new Error(`Appointment ${id} not found.`));
