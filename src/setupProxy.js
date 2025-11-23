@@ -16,11 +16,7 @@ const { issueJWT, verifyJWT, requireScope } = require('../server/auth.ts');
 const { systemMetrics } = require('../server/systemMetrics.ts');
 const { recordAuditEvent } = require('../server/audit-logger.ts');
 const { getActiveAgentProfile } = require('../server/dbBookingIntegration.ts');
-const{
-   createBookingViaDB,
-  updateBookingViaDB,
-  cancelBookingViaDB,
-}= require('../server/dbBookingIntegration.ts');
+const { callMcpTool } = require('../server/mcpClient.ts');
 
 
 function parseJson(req) {
@@ -170,73 +166,36 @@ module.exports = function setupAnalyticsProxy(app) {
       systemMetrics.record('agent.config', Date.now() - started, statusCode ?? res.statusCode);
     }
   });
-    // ==========================
-  //  CREATE BOOKING (DB)
-  // ==========================
-  app.post('/api/db/book', async (req, res) => {
+  app.post('/api/mcp/tools/:toolName', async (req, res) => {
+    const started = Date.now();
+    let statusCode = 500;
     try {
-      const data = await parseJson(req);
-
-      const result = await createBookingViaDB(data);
-
-      return res.json({
-        success: true,
-        booking: result,
-      });
-    } catch (err) {
-      console.error('DB Book Error:', err);
-      return res.status(500).json({
-        success: false,
-        error: err.message,
-      });
+      const args = await parseJson(req);
+      console.log(`[mcp-proxy] Calling tool: ${req.params.toolName}`, args);
+      const result = await callMcpTool(req.params.toolName, args);
+      statusCode = 200;
+      res.json(result);
+    } catch (error) {
+      const errorMessage = error?.message || String(error ?? 'Failed to call MCP tool');
+      console.error(`[mcp-proxy] Tool call failed for ${req.params.toolName}:`, errorMessage);
+      
+      // Check if it's a permission or file not found error
+      if (errorMessage.includes('Permission denied') || errorMessage.includes('ENOENT')) {
+        statusCode = 503;
+        res.status(statusCode).json({
+          success: false,
+          error: `MCP server unavailable: ${errorMessage}. Ensure 'npm run build:mcp' was run and the server file exists.`,
+        });
+      } else {
+        res.status(statusCode).json({
+          success: false,
+          error: errorMessage,
+        });
+      }
+    } finally {
+      systemMetrics.record('mcp.tool', Date.now() - started, statusCode);
     }
   });
-    // ==========================
-  //  UPDATE BOOKING (DB)
-  // ==========================
-  app.post('/api/db/update', async (req, res) => {
-    try {
-      const data = await parseJson(req);
-
-      const result = await updateBookingViaDB(data);
-
-      return res.json({
-        success: true,
-        updated: result,
-      });
-    } catch (err) {
-      console.error('DB Update Error:', err);
-      return res.status(500).json({
-        success: false,
-        error: err.message,
-      });
-    }
-  });
-    // ==========================
-  //  CANCEL BOOKING (DB)
-  // ==========================
-  app.post('/api/db/cancel', async (req, res) => {
-    try {
-      const data = await parseJson(req);
-
-      const result = await cancelBookingViaDB(data);
-
-      return res.json({
-        success: true,
-        canceled: result,
-      });
-    } catch (err) {
-      console.error('DB Cancel Error:', err);
-      return res.status(500).json({
-        success: false,
-        error: err.message,
-      });
-    }
-  });
-
-
-
-
 
   app.post('/api/analytics/events', async (req, res) => {
     const started = Date.now();

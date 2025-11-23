@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useLiveAPIContext } from "../contexts/LiveAPIContext";
 import { ClientContentLog, StreamingLog } from "../types";
 import { sanitizeSensitiveText } from "../lib/security";
@@ -26,6 +26,9 @@ type AnalyticsEvent =
     };
 
 const ANALYTICS_ENDPOINT = "/api/analytics/events";
+const ANALYTICS_ENABLED =
+  process.env.NODE_ENV === "production" ||
+  process.env.REACT_APP_ENABLE_ANALYTICS === "true";
 
 const createId = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -119,10 +122,10 @@ export function useAnalyticsBridge() {
   const sessionIdRef = useRef<string | null>(null);
   const processedLogKeysRef = useRef<string[]>([]);
 
-  const resolveClientSessionId = () => {
+  const resolveClientSessionId = useCallback(() => {
     const session = client.session as { id?: string; name?: string } | null;
     return session?.id ?? session?.name ?? null;
-  };
+  }, [client]);
 
   const rememberLogKey = (key: string) => {
     const existing = processedLogKeysRef.current;
@@ -136,7 +139,10 @@ export function useAnalyticsBridge() {
     return true;
   };
 
-  const ensureSession = async () => {
+  const ensureSession = useCallback(async () => {
+    if (!ANALYTICS_ENABLED) {
+      return createId();
+    }
     if (!sessionIdRef.current) {
       const derivedId = resolveClientSessionId() ?? createId();
       sessionIdRef.current = derivedId;
@@ -147,9 +153,13 @@ export function useAnalyticsBridge() {
       });
     }
     return sessionIdRef.current!;
-  };
+  }, [resolveClientSessionId]);
 
   useEffect(() => {
+    if (!ANALYTICS_ENABLED) {
+      return;
+    }
+
     const onOpen = async () => {
       const derivedId = resolveClientSessionId() ?? createId();
       sessionIdRef.current = derivedId;
@@ -181,9 +191,13 @@ export function useAnalyticsBridge() {
       client.off("open", onOpen);
       client.off("close", onClose);
     };
-  }, [client]);
+  }, [client, ensureSession, resolveClientSessionId]);
 
   useEffect(() => {
+    if (!ANALYTICS_ENABLED) {
+      return;
+    }
+
     const onLog = async (log: StreamingLog) => {
       const keyRoot = `${log.type}|${log.date?.getTime?.() || Date.now()}`;
 
@@ -233,6 +247,6 @@ export function useAnalyticsBridge() {
     return () => {
       client.off("log", onLog);
     };
-  }, [client]);
+  }, [client, ensureSession]);
 }
 

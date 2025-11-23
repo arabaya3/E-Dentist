@@ -27,10 +27,6 @@ const { systemMetrics } = require("./systemMetrics.ts");
 const { recordAuditEvent } = require("./audit-logger.ts");
 
 const {
-  createBookingViaDB,
-  updateBookingViaDB,
-  cancelBookingViaDB,
-  getAvailableDoctors,
   getActiveAgentProfile,   // 👈 ضيفها هون
 } = require("./dbBookingIntegration.ts");
 
@@ -97,49 +93,6 @@ app.get("/api/db-check", async (req, res) => {
     res.json({ status: "ok", result });
   } catch (e) {
     res.status(500).json({ status: "error", error: e.message });
-  }
-});
-
-// =============================
-//  Doctors
-// =============================
-app.get("/api/db/doctors", async (req, res) => {
-  try {
-    const doctors = await getAvailableDoctors();
-    res.json({ success: true, doctors });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-// =============================
-//  Booking API
-// =============================
-app.post("/api/db/book", async (req, res) => {
-  try {
-    const result = await createBookingViaDB(req.body);
-    res.json(result);
-  } catch (err) {
-    console.error("Book error:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.put("/api/db/book/:id", async (req, res) => {
-  try {
-    const result = await updateBookingViaDB(Number(req.params.id), req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.delete("/api/db/book/:id", async (req, res) => {
-  try {
-    const result = await cancelBookingViaDB(Number(req.params.id), req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
   }
 });
 

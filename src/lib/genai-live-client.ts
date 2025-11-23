@@ -49,6 +49,13 @@ export interface LiveClientEventTypes {
   turncomplete: () => void;
 }
 
+type GeminiToolResponse =
+  | LiveClientToolResponse
+  | {
+      toolCallId: string;
+      result: unknown;
+    };
+
 export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   protected client: GoogleGenAI;
 
@@ -241,15 +248,29 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     this.log(`client.realtimeInput`, message);
   }
 
-  sendToolResponse(toolResponse: LiveClientToolResponse) {
+  sendToolResponse(toolResponse: GeminiToolResponse) {
+    if ("toolCallId" in toolResponse && toolResponse.toolCallId) {
+      const payload = {
+        toolCallId: toolResponse.toolCallId,
+        result: toolResponse.result,
+      } as unknown as LiveClientToolResponse;
+      (this.session as any)?.sendToolResponse(payload);
+      this.log(`client.toolResponse`, payload as StreamingLog["message"]);
+      return;
+    }
+
     if (
+      "functionResponses" in toolResponse &&
       toolResponse.functionResponses &&
       toolResponse.functionResponses.length
     ) {
       this.session?.sendToolResponse({
         functionResponses: toolResponse.functionResponses,
       });
-      this.log(`client.toolResponse`, toolResponse);
+      this.log(
+        `client.toolResponse`,
+        toolResponse as StreamingLog["message"]
+      );
     }
   }
 

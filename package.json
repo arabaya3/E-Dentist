@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "dependencies": {
     "@google/genai": "^0.14.0",
+    "@modelcontextprotocol/sdk": "^1.22.0",
     "@prisma/client": "^6.19.0",
     "classnames": "^2.5.1",
     "cors": "^2.8.5",
@@ -25,6 +26,7 @@
     "vega-embed": "^6.29.0",
     "vega-lite": "^5.22.0",
     "web-vitals": "^2.1.4",
+    "zod": "^4.1.12",
     "zustand": "^5.0.1"
   },
   "scripts": {
@@ -37,10 +39,11 @@
     "demo:conversation": "ts-node --transpile-only scripts/conversation-demo.ts",
     "eject": "react-scripts eject",
     "start:backend": "node server/index.js",
-
     "prisma:generate": "prisma generate",
     "prisma:db-push": "prisma db push",
-    "prisma:migrate-dev": "prisma migrate dev"
+    "prisma:migrate-dev": "prisma migrate dev",
+    "build:mcp": "tsc -p mcp-server/tsconfig.json",
+    "start:mcp": "node ./mcp-server/dist/index.js"
   },
   "eslintConfig": {
     "extends": [
@@ -75,6 +78,9 @@
     "prisma": "^6.19.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3"
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"commonjs\"} server/prisma/seed.ts"
   },
   "overrides": {
     "typescript": "^5.6.3"
