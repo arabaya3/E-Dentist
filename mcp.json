@@ -1,0 +1,11 @@
+{
+  "servers": [
+    {
+      "name": "edentist-mcp",
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "cwd": "."
+    }
+  ]
+}
+
