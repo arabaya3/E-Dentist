@@ -7,6 +7,11 @@ import {
 } from "@google/genai";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { GEMINI_LIVE_MODEL } from "../../config";
+import {
+  getPendingOtpUserId,
+  sendOtp,
+  verifyOtp,
+} from "../../services/otp";
 
 /**
  * Calls backend MCP bridge - frontend NEVER talks to MCP directly
@@ -80,19 +85,68 @@ type NormalizedFunctionCall = {
  */
 const mcpToolDeclarations: FunctionDeclaration[] = [
   {
-    name: "create_appointment",
+    name: "send_otp",
     description:
-      "Create a new dental appointment. REQUIRED: doctorName, clinicBranch, patientName, patientPhone,appointmentDate, appointmentTime. Database is the only source of truth - use this tool to create appointments.",
+      "Send an OTP to the user's phone number. MUST be called only after collecting the phone number.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        doctorName: {
+        phoneNumber: {
           type: Type.STRING,
-          description: "Full name of the doctor for this appointment.",
+          description: "Phone number in international format (e.g., +9627...).",
         },
-        clinicBranch: {
+      },
+      required: ["phoneNumber"],
+    },
+  },
+  {
+    name: "verify_otp",
+    description:
+      "Verify an OTP code using the userId returned from send_otp.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        userId: {
+          type: Type.NUMBER,
+          description: "userId returned from send_otp (required).",
+        },
+        code: {
           type: Type.STRING,
-          description: "Clinic location or branch name.",
+          description: "OTP code entered by the user (required).",
+        },
+      },
+      required: ["userId", "code"],
+    },
+  },
+  {
+    name: "create_appointment",
+    description:
+      "Create a new dental appointment via eDentist backend API. You MUST call this tool only after you have: clinicId, doctorId, start datetime, end datetime, userId, and patient contact info.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        clinicId: {
+          type: Type.NUMBER,
+          description: "Numeric clinic ID where the appointment will take place.",
+        },
+        doctorId: {
+          type: Type.STRING,
+          description: "Doctor ID as returned by list_doctors.",
+        },
+        start: {
+          type: Type.STRING,
+          description:
+            "Start datetime in ISO format, e.g. 2025-02-11T14:00:00.",
+        },
+        end: {
+          type: Type.STRING,
+          description:
+            "End datetime in ISO format, e.g. 2025-02-11T14:30:00.",
+        },
+        userId: {
+          type: Type.NUMBER,
+          description:
+            "Numeric user ID in the backend system (must be provided or inferred from context).",
         },
         patientName: {
           type: Type.STRING,
@@ -100,74 +154,48 @@ const mcpToolDeclarations: FunctionDeclaration[] = [
         },
         patientPhone: {
           type: Type.STRING,
-          description: "Patient's contact phone number.",
+          description: "Patient phone number.",
         },
-        appointmentDate: {
+        patientEmail: {
           type: Type.STRING,
-          description: "Appointment date (ISO format or natural language).",
-        },
-        appointmentTime: {
-          type: Type.STRING,
-          description: "Appointment time (e.g., '15:30', '3 PM', 'afternoon').",
-        },
-        status: {
-          type: Type.STRING,
-          description: "Optional appointment status (defaults to 'confirmed').",
+          description: "Optional patient email.",
         },
         notes: {
           type: Type.STRING,
-          description: "Additional notes or special requests.",
-        },
-        otp: {
-          type: Type.STRING,
-          description: "Optional verification code if required by clinic policy.",
+          description: "Optional notes or special requests.",
         },
       },
       required: [
-        "doctorName",
-        "clinicBranch",
+        "clinicId",
+        "doctorId",
+        "start",
+        "end",
+        "userId",
         "patientName",
         "patientPhone",
-        "appointmentDate",
-        "appointmentTime",
       ],
     },
   },
   {
     name: "update_appointment",
     description:
-      "Update an existing appointment. REQUIRED: appointmentId. Provide only the fields to update. Database is the only source of truth - use this tool to modify appointments.",
+      "Update an existing appointment. NOTE: Currently NOT implemented on the backend API. You should prefer cancel_appointment + create_appointment instead.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         appointmentId: {
           type: Type.STRING,
-          description: "The appointment ID to update (required).",
+          description:
+            "Appointment ID to update. This tool will usually throw an error because external API does not support updates yet.",
         },
-        doctorName: { type: Type.STRING, description: "Updated doctor name." },
-        clinicBranch: {
-          type: Type.STRING,
-          description: "Updated clinic branch.",
-        },
-        patientName: { type: Type.STRING, description: "Updated patient name." },
-        patientPhone: {
-          type: Type.STRING,
-          description: "Updated patient phone.",
-        },
-        serviceType: {
-          type: Type.STRING,
-          description: "Updated service type.",
-        },
-        appointmentDate: {
-          type: Type.STRING,
-          description: "Updated appointment date.",
-        },
-        appointmentTime: {
-          type: Type.STRING,
-          description: "Updated appointment time.",
-        },
-        status: { type: Type.STRING, description: "Updated status." },
-        notes: { type: Type.STRING, description: "Updated notes." },
+        doctorName: { type: Type.STRING },
+        clinicBranch: { type: Type.STRING },
+        patientName: { type: Type.STRING },
+        patientPhone: { type: Type.STRING },
+        appointmentDate: { type: Type.STRING },
+        appointmentTime: { type: Type.STRING },
+        status: { type: Type.STRING },
+        notes: { type: Type.STRING },
       },
       required: ["appointmentId"],
     },
@@ -175,7 +203,7 @@ const mcpToolDeclarations: FunctionDeclaration[] = [
   {
     name: "cancel_appointment",
     description:
-      "Cancel an appointment. REQUIRED: appointmentId. Database is the only source of truth - use this tool to cancel appointments.",
+      "Cancel an appointment via eDentist backend API. You MUST have both appointmentId and userId.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -183,28 +211,45 @@ const mcpToolDeclarations: FunctionDeclaration[] = [
           type: Type.STRING,
           description: "The appointment ID to cancel (required).",
         },
+        userId: {
+          type: Type.STRING,
+          description:
+            "Numeric user ID in string form. REQUIRED by the backend API.",
+        },
         reason: {
           type: Type.STRING,
           description: "Reason for cancellation.",
         },
         cancelledBy: {
           type: Type.STRING,
-          description: "Who requested the cancellation.",
+          description: "Who requested the cancellation (patient, clinic, etc).",
         },
       },
-      required: ["appointmentId"],
+      required: ["appointmentId", "userId"],
     },
   },
   {
     name: "list_clinics",
     description:
-      "List all available clinics. Database is the only source of truth - use this tool to get clinic information.",
+      "List clinics via eDentist backend API. You can optionally filter by country, city, or address.",
     parameters: {
       type: Type.OBJECT,
       properties: {
+        country: {
+          type: Type.STRING,
+          description: "Optional country filter.",
+        },
+        city: {
+          type: Type.STRING,
+          description: "Optional city filter.",
+        },
+        address: {
+          type: Type.STRING,
+          description: "Optional address filter.",
+        },
         limit: {
           type: Type.NUMBER,
-          description: "Maximum number of clinics to return (default: 50).",
+          description: "Maximum number of clinics to return (default: no limit).",
         },
       },
     },
@@ -212,132 +257,92 @@ const mcpToolDeclarations: FunctionDeclaration[] = [
   {
     name: "list_doctors",
     description:
-      "List doctors available at clinics. Database is the only source of truth - use this tool to get doctor information.",
+      "List doctors for a specific clinic using the eDentist backend API. clinicId is REQUIRED.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         clinicId: {
           type: Type.NUMBER,
-          description: "Optional clinic ID to filter doctors.",
-        },
-        includeClinic: {
-          type: Type.BOOLEAN,
-          description: "Include clinic details with each doctor.",
+          description: "Clinic ID to list doctors for (required).",
         },
         limit: {
           type: Type.NUMBER,
-          description: "Maximum number of doctors to return (default: 50).",
+          description:
+            "Maximum number of doctors to return (default: no limit).",
         },
       },
+      required: ["clinicId"],
     },
   },
   {
     name: "validate_voucher",
     description:
-      "Validate a voucher code. REQUIRED: code. Database is the only source of truth - use this tool to check voucher validity.",
+      "Validate a voucher code. NOTE: Currently NOT connected to the external API and will likely fail.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         code: {
           type: Type.STRING,
-          description: "Voucher code to validate (required).",
+          description: "Voucher code to validate.",
         },
       },
       required: ["code"],
     },
   },
-  {
-    name: "find_user_by_phone",
-    description:
-      "Find a user by phone number. REQUIRED: phone. Database is the only source of truth - use this tool to look up users.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        phone: {
-          type: Type.STRING,
-          description: "Phone number to search for (required).",
-        },
-      },
-      required: ["phone"],
-    },
-  },
-  {
-    name: "find_user_by_name",
-    description:
-      "Search for users by name. REQUIRED: name. Database is the only source of truth - use this tool to search users.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        name: {
-          type: Type.STRING,
-          description: "Name or partial name to search for (required).",
-        },
-        limit: {
-          type: Type.NUMBER,
-          description: "Maximum number of results (default: 25).",
-        },
-      },
-      required: ["name"],
-    },
-  },
+
   {
     name: "list_user_appointments",
     description:
-      "List appointments for a patient. Provide either patientPhone or patientName. Database is the only source of truth - use this tool to get patient appointments.",
+      "List appointments for a user by userId via eDentist backend API.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        patientPhone: {
+        userId: {
           type: Type.STRING,
-          description: "Patient phone number to filter by.",
+          description:
+            "User ID (string) – will be converted to number in the MCP server.",
         },
-        patientName: {
+        doctorId: {
           type: Type.STRING,
-          description: "Patient name to filter by.",
+          description: "Optional doctorId filter.",
+        },
+        startFrom: {
+          type: Type.STRING,
+          description: "Optional ISO datetime filter: start from.",
+        },
+        startTo: {
+          type: Type.STRING,
+          description: "Optional ISO datetime filter: start to.",
         },
         limit: {
           type: Type.NUMBER,
-          description: "Maximum number of appointments to return (default: 50).",
+          description: "Maximum number of appointments to return.",
         },
       },
+      required: ["userId"],
     },
   },
   {
     name: "search_appointments",
     description:
-      "Search appointments by various criteria. Database is the only source of truth - use this tool to search appointments.",
+      "Search appointments (NOT implemented on the external API; MCP will throw an error). Use list_user_appointments instead.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        doctorName: { type: Type.STRING, description: "Filter by doctor name." },
-        clinicBranch: {
-          type: Type.STRING,
-          description: "Filter by clinic branch.",
-        },
-        appointmentDate: {
-          type: Type.STRING,
-          description: "Filter by appointment date.",
-        },
-        status: { type: Type.STRING, description: "Filter by status." },
-        patientName: {
-          type: Type.STRING,
-          description: "Filter by patient name.",
-        },
-        patientPhone: {
-          type: Type.STRING,
-          description: "Filter by patient phone.",
-        },
-        limit: {
-          type: Type.NUMBER,
-          description: "Maximum number of results (default: 50).",
-        },
+        doctorName: { type: Type.STRING },
+        clinicBranch: { type: Type.STRING },
+        appointmentDate: { type: Type.STRING },
+        status: { type: Type.STRING },
+        patientName: { type: Type.STRING },
+        patientPhone: { type: Type.STRING },
+        limit: { type: Type.NUMBER },
       },
     },
   },
   {
     name: "log_voice_call",
     description:
-      "Log metadata for a voice call session. REQUIRED: agentId, conversationId, status. Use this to record call information.",
+      "Log metadata for a voice call session. Does not affect bookings.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -373,9 +378,53 @@ const mcpToolDeclarations: FunctionDeclaration[] = [
       required: ["agentId", "conversationId", "status"],
     },
   },
+  // NEW: free_slots
+  {
+    name: "free_slots",
+    description:
+      "Get available appointment slots for a clinic (and optionally a specific doctor) between two datetimes.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        clinicId: {
+          type: Type.NUMBER,
+          description: "Clinic ID to check availability for (required).",
+        },
+        doctorId: {
+          type: Type.STRING,
+          description: "Optional doctorId to filter by doctor.",
+        },
+        start: {
+          type: Type.STRING,
+          description:
+            "Start datetime in ISO format for availability search.",
+        },
+        end: {
+          type: Type.STRING,
+          description:
+            "End datetime in ISO format for availability search.",
+        },
+      },
+      required: ["clinicId", "start", "end"],
+    },
+  },
 ];
 
+
 const MCP_TOOL_NAMES = new Set(mcpToolDeclarations.map((t) => t.name));
+const AUTH_TOOL_NAMES = new Set([
+  "sendOtp",
+  "verifyOtp",
+  "send_otp",
+  "verify_otp"
+]);
+
+const MCP_BACKEND_TOOL_NAMES = new Set(
+  mcpToolDeclarations
+    .map((t) => t.name)
+    .filter((name): name is string => typeof name === "string")
+    .filter((name) => !AUTH_TOOL_NAMES.has(name))
+);
 
 function normalizeToolCalls(
   toolCall: LiveServerToolCall
@@ -434,12 +483,6 @@ const renderAltairDeclaration: FunctionDeclaration = {
   },
 };
 
-const DEFAULT_AR_GREETING =
-  "مرحباً! أنا eDentist.AI، مساعد الحجوزات الذكي للعيادات السنية. أستطيع مساعدتك في حجز، تعديل، أو إلغاء المواعيد بالإضافة إلى الإجابة عن أسئلة الخدمات.";
-
-const DEFAULT_EN_GREETING =
-  "Hello! I'm eDentist.AI, the concierge for your dental clinic. I can book, reschedule, or cancel appointments and answer service questions.";
-
 const DEFAULT_REQUIRED_FIELDS = ["name", "phone"];
 
 
@@ -451,10 +494,6 @@ type AgentConfigPayload = {
   initialGreetingMessage?: string | null;
   requiredInfo?: unknown;
 };
-
-function sanitizeInstructionValue(value: string) {
-  return value.replace(/[`]/g, "\\`").replace(/\$\{/g, "\\${");
-}
 
 function extractRequiredFields(
   source: AgentConfigPayload["requiredInfo"]
@@ -506,12 +545,6 @@ export default function VoiceAgentBootstrap() {
         return;
       }
 
-      const arabicGreeting = sanitizeInstructionValue(
-        (agentConfig?.welcomeMessage || DEFAULT_AR_GREETING).trim()
-      );
-      const englishGreeting = sanitizeInstructionValue(
-        (agentConfig?.initialGreetingMessage || DEFAULT_EN_GREETING).trim()
-      );
       const conciergeName =
         agentConfig?.agentName?.trim() || "the eDentist.AI concierge";
       const clinicName =
@@ -519,7 +552,7 @@ export default function VoiceAgentBootstrap() {
       const requiredFields = extractRequiredFields(agentConfig?.requiredInfo);
 
       // CRITICAL: System instruction that prevents hallucination
-      const systemInstruction = `You are medical bot — a bilingual (Arabic/English) voice concierge representing ${clinicName}.
+      const systemInstruction = `You are medical bot ƒ?" a bilingual (Arabic/English) voice concierge representing ${clinicName}.
 
 Active concierge persona: ${conciergeName}.
 
@@ -540,30 +573,37 @@ Active concierge persona: ${conciergeName}.
    - If needed information is missing, ask the user to clarify.
 
 3. **Examples of when you MUST use tools:**
-   - User asks "What doctors are available?" → Call list_doctors
-   - User asks "Do I have an appointment?" → Call list_user_appointments or search_appointments
-   - User wants to book → Call create_appointment (after collecting all required fields)
-   - User mentions a voucher → Call validate_voucher
-   - User asks about clinics → Call list_clinics
+   - User asks "What doctors are available?" ƒ+' Call list_doctors
+   - User asks "Do I have an appointment?" ƒ+' Call list_user_appointments or search_appointments
+   - User wants to book ƒ+' Call create_appointment (after collecting all required fields)
+   - User mentions a voucher ƒ+' Call validate_voucher
+   - User asks about clinics ƒ+' Call list_clinics
 
 4. **Never guess or assume:**
    - If you don't have data from a tool call, you cannot answer.
    - Always call the appropriate tool first, then respond based on the tool's result.
-
-## Arabic Number Conversion Rules:
 When responding in Arabic:
-- You MUST NEVER use Arabic or Western digits (0-9). Not in any form.
-- You MUST convert every number into full written Arabic words.
-- You MUST convert times into natural spoken Arabic (3:30 → "الثالثة والنصف", 4:15 → "الرابعة والربع", 5:45 → "السادسة إلا ربع").
-- You MUST convert dates into full written Arabic form (25/11/2025 → "الخامس والعشرون من نوفمبر عام ألفين وخمسة وعشرون").
-- You MUST convert phone numbers digit-by-digit into words (0791234567 → "صفر سبعة تسعة واحد اثنان ثلاثة أربعة خمسة ستة سبعة").
-- You MUST convert all durations and countdowns to Arabic words (60 minutes → "ستون دقيقة", 2 hours → "ساعتان").
-- If ANY digit appears in your output, consider it a violation and regenerate the line using words only.
+
+- You MUST NEVER use Arabic or Western digits (0–9) in your output. Not in any form.
+- You MUST convert every number into fully written Arabic words.
+- You MUST convert times into natural spoken Arabic. For example:
+  - "3:30" → "الثالثة والنصف"
+  - "4:15" → "الرابعة والربع"
+  - "5:45" → "الخامسة إلا ربع"
+- You MUST convert dates into full written Arabic form. For example:
+  - "25/11/2025" → "الخامس والعشرون من شهر تشرين الثاني من عام ألفين وخمس وعشرين"
+- You MUST convert phone numbers digit-by-digit into words. For example:
+  - "0791234567" → "صفر سبعة تسعة واحد اثنان ثلاثة أربعة خمسة ستة سبعة"
+- You MUST convert all durations and countdowns to Arabic words. For example:
+  - "60 minutes" → "ستون دقيقة"
+  - "2 hours" → "ساعتان"
+- If ANY digit appears in your Arabic output, you MUST treat it as a violation and regenerate that line using Arabic words only.
+
 
 ## Arabic Dialect Handling:
 When the caller speaks Arabic, you MUST automatically detect their dialect
 (Jordanian, Palestinian, Saudi, Emirati, Kuwaiti, Egyptian, Levantine, Iraqi, or neutral MSA)
-based on their first 1–2 messages.
+based on their first 1ƒ?"2 messages.
 
 ## Operating Modes (Patient vs. Clinic Owner)
 
@@ -607,20 +647,86 @@ Then:
 
 ## Session kickoff:
 - Always start with a generic greeting message and not from the database.
-- If the caller speaks Arabic, respond with this Arabic respond with this Arabic generic greeting:
-  """أهلاً وسهلاً في عيادتنا، كيف ممكن   أساعدك اليوم؟"""
-- - If the caller greets in English, respond with this English generic greeting:
+
+- If the caller speaks Arabic, respond with this Arabic generic greeting:
+  """أهلاً وسهلاً في عيادتنا! كيف بقدر أساعدك اليوم؟"""
+
+- If the caller greets in English, respond with this English generic greeting:
   """Welcome to our clinic! How can I assist you today?"""
-- Do not invent a different greeting unless the caller explicitly asks for something else.
+
+- Do not invent or change the greeting unless the caller explicitly asks for something else.
+
 
 ## Core responsibilities:
 ## Core responsibilities:
 - It is MANDATORY to capture and confirm ALL of the following fields: ${requiredFields.join(", ")}.
 - No appointment may be created, updated, or confirmed without completing every required field.
+## Booking Flow (MUST FOLLOW STEP-BY-STEP)
+
+When the caller wants to BOOK an appointment, you MUST behave as a state machine and fill the following slots in order:
+
+1. Determine the goal:
+   - Is the user booking a NEW appointment?
+   - Are they cancelling an existing one?
+   - Are they just asking a question?
+
+2. For NEW BOOKINGS, you MUST collect and confirm ALL of these BEFORE calling create_appointment:
+   - clinicId (from list_clinics if necessary)
+   - doctorId (from list_doctors for the chosen clinic)
+   - exact date (convert from natural language to a specific calendar date in Amman time)
+   - exact time range (start and end, e.g. 30-min slot)
+   - userId (or an internal numeric ID provided by the user or system)
+   - patientName
+   - patientPhone
+
+3. Use tools in this ORDER for bookings:
+   a) If clinic is unknown ƒ+' call list_clinics and help the user choose a clinicId.
+   b) If doctor is unknown ƒ+' call list_doctors with the chosen clinicId and help them choose doctorId.
+   c) Once clinicId and doctorId are known ƒ+' call free_slots with a reasonable time range to find availability.
+   d) Confirm the final slot with the user (date + time).
+   e) Only AFTER all fields are ready ƒ+' call create_appointment with FULL payload.
+
+4. NEVER call create_appointment with missing or guessed values.
+   - If anything is missing, ask a targeted clarification question.
+   - Always show the user a brief summary before booking: doctor, clinic, date, time.
+
+5. For CANCELLATIONS:
+   - Ask for appointmentId and userId.
+   - Confirm OTP flow according to the clinic policy described above.
+   - Only then call cancel_appointment.
+
+
+You MUST treat this as a strict slot-filling state machine.
+Do not loop over list_clinics or list_doctors without progressing the state.
+
+
+If the API returns a user, extract user.id and use it as userId.
+If no user is found, ask the user if they want to create a new account or refuse the booking.
+You MUST NEVER guess the userId.
+
+IMPORTANT RULE:
+During authentication, the tool \`find_user_by_phone\` is COMPLETELY FORBIDDEN.
+You MUST NEVER call \`find_user_by_phone\` when the user provides a phone number.
+
+If the user mentions any phone number in any form:
+→ ALWAYS call \`send_otp\` with { phoneNumber }.
+→ NEVER call \`find_user_by_phone\` until AFTER OTP verification succeeds.
+
+If the assistant calls \`find_user_by_phone\` before OTP verification,
+consider it a critical violation and regenerate the tool call as \`send_otp\`.
+
+
+Only use find_user_by_phone AFTER the user has successfully verified the OTP
+AND ONLY within appointment booking flows.
+
+If the conversation is in the authentication/login phase:
+- Step 1 → call send_otp with { phoneNumber }
+- Step 2 → wait for the OTP and call verify_otp
+
 
 
 - Suggest available dentists and alternative slots whenever the requested time is unavailable.
-- Follow business rules: working hours are Sunday–Thursday, 9 AM–9 PM; the clinic is closed on Fridays and Saturdays.
+- Follow business rules: working hours are Sundayƒ?"Thursday, 9 AMƒ?"9 PM; the clinic is closed on Fridays and Saturdays.
 - Speak with a professional, warm tone that reflects dental-care expertise and use the clinic's knowledge base when relevant.
 - Prioritize voice-first booking, follow-ups, cancellations, orthodontics, whitening, implants, hygiene reminders, and clinic FAQs.
 
@@ -635,7 +741,7 @@ Then:
 ## Time & Date Rules (Jordan Local Time Only):
 - You MUST ALWAYS use the local date and time of Amman, Jordan (UTC+3).
 - All interpretations of relative dates such as "today", "tomorrow", "yesterday", "next week", "next month", etc., MUST be based exclusively on Amman local time.
-- When the user mentions a specific date or says words like “bokra” (tomorrow) or “after tomorrow”, you MUST convert it according to Amman local time.
+- When the user mentions a specific date or says words like ƒ?obokraƒ?? (tomorrow) or ƒ?oafter tomorrowƒ??, you MUST convert it according to Amman local time.
 - Do NOT use system time or server time. Use ONLY Amman, Jordan local time for all scheduling, confirmations, and reasoning.
 
 ## Language & Dialect Behavior Rules:
@@ -643,16 +749,20 @@ Then:
 - The assistant MUST detect the user's speaking style and dialect (Arabic dialect or English accent/tone) from the first one or two messages.
 - Once detected, the assistant MUST maintain the same dialect/tone/style throughout the entire session, whether in Arabic or English.
 - The assistant MUST NOT switch dialects, accents, tone, or language unless the user explicitly requests a change.
-- If the user explicitly requests a specific dialect, tone, or language (e.g., "احكي أردني", "احكي خليجي", "احكي إنجليزي", "speak American English"), the assistant MUST switch and then maintain that choice for the rest of the session.
 - The assistant MUST ensure consistent linguistic style and tone based on user preference or detection.
 
-## OTP Verification for Cancellations:
-- Before cancelling ANY appointment, you MUST request the following from the user:
-  1. Full name
-  2. Phone number
-  3. One-time verification code (OTP)
-- You MUST NOT proceed with cancel_appointment unless all three fields (name, phone, OTP) are collected and confirmed.
-- If the user cannot provide the OTP, you must refuse the cancellation and ask them to request a new code.
+## OTP Authentication Flow (ALWAYS ENFORCE):
+- Phone-first: NEVER ask for or accept an OTP before you have the phone number.
+- After capturing the phone number:
+  1) Call the tool send_otp with { phoneNumber }.
+  2) Store the phone number and the returned userId in memory/session.
+  3) Say: "Great, I have your phone number. What is the OTP you received?"
+- If the user gives an OTP before a phone number, reply politely: "Before the OTP, I need your phone number please."
+- Once the user provides the OTP:
+  1) Call the tool verify_otp with { userId (from send_otp), code }.
+  2) On success, treat the user as authenticated/logged-in and persist the session (use any returned auth token).
+  3) If the API responds with an error (e.g., invalid code), surface the message to the user and let them retry or request a new code.
+- For cancellations: you MUST have name + phone + OTP collected and verified (via verify_otp) before calling cancel_appointment. If the user cannot provide a valid OTP, refuse the cancellation and ask them to request a new code.
 
 
 
@@ -713,6 +823,7 @@ REMEMBER: Database is the ONLY source of truth. Always use tools. Never hallucin
               graphPayload
             );
           }
+
           const responseId =
             call.id ??
             call.toolCallId ??
@@ -729,9 +840,107 @@ REMEMBER: Database is the ONLY source of truth. Always use tools. Never hallucin
           });
           continue;
         }
+        if (call.name === "find_user_by_phone") {
+          if (!getPendingOtpUserId()) {
+            console.warn("[voice-agent] BLOCKED find_user_by_phone before OTP");
+            // force send_otp instead
+            const phone = call.args["phone"] || call.args["phoneNumber"];
+            return await handleToolCall({
+              name: "send_otp",
+              args: { phoneNumber: phone }
+            } as any);
+          }
+        }
+        
 
-        // Handle MCP tools - route to backend
-        if (MCP_TOOL_NAMES.has(call.name)) {
+        // Handle OTP tools locally (no MCP hop)
+        if (AUTH_TOOL_NAMES.has(call.name)) {
+          try {
+            const toolCallId =
+              call.toolCallId ??
+              call.id ??
+              crypto.randomUUID?.() ??
+              Date.now().toString();
+
+            let result: unknown;
+            if (call.name === "send_otp") {
+              const phoneArg =
+                (call.args["phoneNumber"] as string | undefined) ??
+                (call.args["phone"] as string | undefined) ??
+                "";
+              result = await sendOtp(phoneArg);
+            } else {
+              const userIdArg =
+                (call.args["userId"] as number | string | undefined) ??
+                getPendingOtpUserId();
+              const codeArg =
+                (call.args["code"] as string | undefined) ??
+                (call.args["otp"] as string | undefined) ??
+                "";
+              result = await verifyOtp({
+                userId: userIdArg,
+                code: codeArg,
+              });
+            }
+
+            const wrappedResult = {
+              content: [
+                {
+                  type: "text",
+                  text:
+                    typeof result === "string"
+                      ? result
+                      : JSON.stringify(result ?? null),
+                },
+              ],
+            };
+
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  id: toolCallId,
+                  name: call.name,
+                  response: {
+                    output: wrappedResult,
+                  },
+                },
+              ],
+            });
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : "Unknown OTP error";
+            const toolCallId =
+              call.toolCallId ??
+              call.id ??
+              crypto.randomUUID?.() ??
+              Date.now().toString();
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  id: toolCallId,
+                  name: call.name,
+                  response: {
+                    output: {
+                      content: [
+                        {
+                          type: "text",
+                          text: JSON.stringify({
+                            success: false,
+                            error: message,
+                          }),
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+            });
+          }
+          continue;
+        }
+
+        // Handle MCP tools - route to backend (exclude auth/OTP tools)
+        if (MCP_BACKEND_TOOL_NAMES.has(call.name)) {
           try {
             console.log(
               `[voice-agent] Calling MCP tool: ${call.name}`,

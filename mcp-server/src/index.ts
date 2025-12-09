@@ -1,30 +1,92 @@
-import { Prisma, PrismaClient, VoiceAgentsProvider } from "@prisma/client";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-type ToolResult = {
-  content: { type: "text"; text: string }[];
-};
+// =====================
+//  API CONFIG & HELPERS
+// =====================
 
-const prisma = new PrismaClient();
+const API_BASE =
+  "https://edentist-be-stage-576483531725.europe-west1.run.app/api/v1";
+
+type QueryParams = Record<string, string | number | boolean | undefined>;
+
+function buildUrl(path: string, query?: QueryParams): string {
+  const url = new URL(path.replace(/^\//, ""), API_BASE + "/");
+  if (query) {
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, String(value));
+      }
+    }
+  }
+  return url.toString();
+}
+
+async function apiGet<T = unknown>(path: string, query?: QueryParams): Promise<T> {
+  const url = buildUrl(path, query);
+  console.log("[edentist-mcp] GET", url);
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GET ${url} failed: ${res.status} ${res.statusText} - ${text}`);
+  }
+  return (await res.json()) as T;
+}
+
+async function apiPost<T = unknown>(
+  path: string,
+  body: unknown
+): Promise<T> {
+  const url = buildUrl(path);
+  console.log("[edentist-mcp] POST", url, "body:", JSON.stringify(body));
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`POST ${url} failed: ${res.status} ${res.statusText} - ${text}`);
+  }
+  return (await res.json()) as T;
+}
+
+async function apiDelete<T = unknown>(
+  path: string,
+  query?: QueryParams
+): Promise<T> {
+  const url = buildUrl(path, query);
+  console.log("[edentist-mcp] DELETE", url);
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `DELETE ${url} failed: ${res.status} ${res.statusText} - ${text}`
+    );
+  }
+  return (await res.json()) as T;
+}
+
+// =====================
+//  MCP SERVER BASE
+// =====================
 
 const server = new McpServer({
   name: "edentist-mcp",
-  version: "1.0.0",
+  version: "2.0.0-api-only",
 });
 
-const toNumber = (value: number | string) =>
+const toNumber = (value: number | string): number =>
   typeof value === "number" ? value : Number.parseInt(value, 10);
 
-const respond = (payload: unknown): ToolResult => ({
-  content: [{ type: "text", text: JSON.stringify(payload) }],
+const respond = (payload: unknown) => ({
+  content: [{ type: "text" as const, text: JSON.stringify(payload) }],
 });
 
-const respondSuccess = (data: unknown) =>
-  respond({ success: true, data });
+const respondSuccess = (data: unknown) => respond({ success: true, data });
 
-const respondError = (error: unknown, meta?: Record<string, unknown>) => {
+const respondError = (error: unknown, meta?: unknown) => {
   const message =
     error instanceof Error ? error.message : String(error ?? "Unknown error");
   return respond({
@@ -35,47 +97,46 @@ const respondError = (error: unknown, meta?: Record<string, unknown>) => {
 };
 
 const safeTool =
-  <T extends z.ZodTypeAny>(
+  <TSchema extends z.ZodTypeAny, TParsed = z.infer<TSchema>>(
     toolName: string,
-    schema: T,
-    handler: (input: z.infer<T>) => Promise<unknown>
+    schema: TSchema,
+    handler: (input: TParsed) => Promise<unknown>
   ) =>
-  async (rawInput: unknown): Promise<ToolResult> => {
+  async (rawInput: unknown) => {
     try {
-      // Debug: Log what we receive
-      console.log(`[edentist-mcp] Tool ${toolName} received input:`, JSON.stringify(rawInput, null, 2));
-      console.log(`[edentist-mcp] Tool ${toolName} input type:`, typeof rawInput);
-      
-      // When inputSchema is provided, MCP SDK parses and passes the parsed data directly
-      // rawInput should already be the parsed arguments object
-      let inputToParse = rawInput;
-      
-      // If rawInput is undefined or null, use empty object
-      if (inputToParse === undefined || inputToParse === null) {
-        console.warn(`[edentist-mcp] Tool ${toolName} input is undefined/null, using empty object`);
-        inputToParse = {};
-      }
-      
-      // If inputToParse is an array, take first element (shouldn't happen, but handle it)
+      console.log(
+        `[edentist-mcp] Tool ${toolName} received input:`,
+        JSON.stringify(rawInput, null, 2)
+      );
+      let inputToParse: unknown = rawInput ?? {};
+
       if (Array.isArray(inputToParse) && inputToParse.length > 0) {
-        console.warn(`[edentist-mcp] Tool ${toolName} input is array, taking first element`);
+        console.warn(
+          `[edentist-mcp] Tool ${toolName} input is array, taking first element`
+        );
         inputToParse = inputToParse[0];
       }
-      
-      // If inputToParse is a string, try to parse it as JSON
+
       if (typeof inputToParse === "string") {
-        console.warn(`[edentist-mcp] Tool ${toolName} input is string, attempting JSON parse`);
+        console.warn(
+          `[edentist-mcp] Tool ${toolName} input is string, attempting JSON parse`
+        );
         try {
           inputToParse = JSON.parse(inputToParse);
         } catch {
           inputToParse = { value: inputToParse };
         }
       }
-      
-      console.log(`[edentist-mcp] Tool ${toolName} parsing with schema...`);
+
+      console.log(
+        `[edentist-mcp] Tool ${toolName} parsing with schema...`
+      );
       const parsed = schema.parse(inputToParse);
-      console.log(`[edentist-mcp] Tool ${toolName} schema validation passed`);
-      const data = await handler(parsed);
+      console.log(
+        `[edentist-mcp] Tool ${toolName} schema validation passed`
+      );
+
+      const data = await handler(parsed as TParsed);
       return respondSuccess(data);
     } catch (error) {
       console.error(`[edentist-mcp] tool failure (${toolName}):`, error);
@@ -83,48 +144,68 @@ const safeTool =
     }
   };
 
+// =====================
+//  SCHEMAS (Zod)
+// =====================
+
+// NOTE: عدّلنا هذا السكيمـا ليتوافق مع الـ API الحقيقي
 const createAppointmentSchema = z.object({
-  doctorName: z.string().min(1),
-  clinicBranch: z.string().min(1),
-  patientName: z.string().min(1),
-  patientPhone: z.string().min(3),
-  serviceType: z.string().optional(),
-  appointmentDate: z.string().min(1),
-  appointmentTime: z.string().min(1),
-  status: z.string().optional(),
+  clinicId: z.number().int().positive(),
+  doctorId: z.string().min(1),
+  start: z.string().min(1), // ISO datetime
+  end: z.string().min(1),   // ISO datetime
+  userId: z.number().int().positive(),
+  patientName: z.string().min(1).optional(),
+  patientPhone: z.string().min(3).optional(),
+  patientEmail: z.string().email().optional(),
   notes: z.string().optional(),
-  otp: z.string().optional(),
 });
 
+// لا يوجد endpoint واضح للتحديث في الـ PDF، نخليها لكن بدون ربط حقيقي
 const updateAppointmentSchema = z.object({
-  appointmentId: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]),
+  appointmentId: z.union([
+    z.number().int().positive(),
+    z.string().regex(/^\d+$/),
+  ]),
   doctorName: z.string().min(1).optional(),
   clinicBranch: z.string().min(1).optional(),
   patientName: z.string().min(1).optional(),
   patientPhone: z.string().min(3).optional(),
-  serviceType: z.string().min(1).optional(),
   appointmentDate: z.string().optional(),
   appointmentTime: z.string().optional(),
   status: z.string().optional(),
   notes: z.string().optional(),
 });
 
+// عدّلنا هنا وأضفنا userId لأنه مطلوب في الـ DELETE API
 const cancelAppointmentSchema = z.object({
-  appointmentId: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]),
+  appointmentId: z.union([
+    z.number().int().positive(),
+    z.string().regex(/^\d+$/),
+  ]),
+  userId: z.union([
+    z.number().int().positive(),
+    z.string().regex(/^\d+$/),
+  ]),
   reason: z.string().optional(),
   cancelledBy: z.string().optional(),
 });
 
+// list_clinics الآن تستخدم /agnet/clinic مع فلاتر اختيارية
 const listClinicsSchema = z.object({
+  country: z.string().optional(),
+  city: z.string().optional(),
+  address: z.string().optional(),
   limit: z.number().int().positive().max(100).optional(),
 });
 
+// list_doctors → /agnet/clinic/doctors?clinicId=1
 const listDoctorsSchema = z.object({
-  clinicId: z.number().int().positive().optional(),
-  includeClinic: z.boolean().optional(),
+  clinicId: z.number().int().positive(),
   limit: z.number().int().positive().max(100).optional(),
 });
 
+// هذه التولز حالياً ليست مربوطة بـ API موثّق
 const validateVoucherSchema = z.object({
   code: z.string().min(3),
 });
@@ -148,12 +229,19 @@ const findUserByNameSchema = z.object({
   limit: z.number().int().positive().max(50).optional(),
 });
 
+// عدّلنا لتتوافق مع API list appointments by user
 const listUserAppointmentsSchema = z.object({
-  patientPhone: z.string().min(3).optional(),
-  patientName: z.string().min(1).optional(),
+  userId: z.union([
+    z.number().int().positive(),
+    z.string().regex(/^\d+$/),
+  ]),
+  doctorId: z.string().optional(),
+  startFrom: z.string().optional(), // ISO
+  startTo: z.string().optional(),   // ISO
   limit: z.number().int().positive().max(100).optional(),
 });
 
+// نترك search_appointments كـ placeholder حالياً
 const searchAppointmentsSchema = z.object({
   doctorName: z.string().optional(),
   clinicBranch: z.string().optional(),
@@ -164,399 +252,296 @@ const searchAppointmentsSchema = z.object({
   limit: z.number().int().positive().max(100).optional(),
 });
 
-type AppointmentRaw = Record<string, any>;
+// =====================
+//  TOOLS IMPLEMENTATION
+// =====================
 
-const getAppointmentRaw = (details: Prisma.JsonValue): AppointmentRaw =>
-  details && typeof details === "object" && !Array.isArray(details)
-    ? (details as AppointmentRaw)
-    : {};
+// 1) CREATE APPOINTMENT -> POST /agnet/clinic/appointment
 
-const normalizeAppointment = (
-  appointment: {
-    id: number;
-    appointment_raw_details: Prisma.JsonValue;
-    createdAt: Date;
-    updatedAt: Date;
-  }
-) => ({
-  id: appointment.id,
-  createdAt: appointment.createdAt,
-  updatedAt: appointment.updatedAt,
-  ...getAppointmentRaw(appointment.appointment_raw_details),
-});
 
 server.registerTool(
+  
+  
   "create_appointment",
   {
     title: "Create appointment",
-    description: "Creates a new appointment stored in the Prisma database.",
+    description:
+      "Creates a new appointment via eDentist backend API (no local DB).",
     inputSchema: createAppointmentSchema as any,
   },
   safeTool("create_appointment", createAppointmentSchema, async (input) => {
-    const payload = {
-      ...input,
-      status: input.status ?? "confirmed",
-      createdAt: new Date().toISOString(),
+    const body = {
+      clinicId: input.clinicId,
+      doctorId: input.doctorId,
+      start: input.start,
+      end: input.end,
+      patientName: input.patientName,
+      patientPhone: input.patientPhone,
+      patientEmail: input.patientEmail,
+      notes: input.notes ?? "",
+      userId: input.userId,
     };
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        appointment_raw_details: payload,
-      },
-    });
-
-    return {
-      appointmentId: appointment.id,
-      details: payload,
-    };
+    const data = await apiPost("/agnet/clinic/appointment", body);
+    return data;
   })
 );
 
+// 2) UPDATE APPOINTMENT -> غير مدعومة في الـ API حالياً
 server.registerTool(
   "update_appointment",
   {
     title: "Update appointment",
-    description: "Updates appointment fields such as date, time, doctor, or status.",
+    description:
+      "Updates appointment fields (NOT IMPLEMENTED on external API yet).",
     inputSchema: updateAppointmentSchema as any,
   },
-  safeTool("update_appointment", updateAppointmentSchema, async ({ appointmentId, ...updates }) => {
-    const hasUpdates = Object.values(updates).some(
-      (value) => value !== undefined && value !== null
-    );
-    if (!hasUpdates) {
-      return respondError(
-        new Error("Provide at least one field to update the appointment.")
+  safeTool(
+    "update_appointment",
+    updateAppointmentSchema,
+    async () => {
+      throw new Error(
+        "update_appointment is not implemented against the external API yet. Use cancel_appointment + create_appointment instead."
       );
     }
-
-    const id = toNumber(appointmentId);
-    const existing = await prisma.appointment.findUnique({ where: { id } });
-    if (!existing) {
-      return respondError(new Error(`Appointment ${id} not found.`));
-    }
-
-    const details = getAppointmentRaw(existing.appointment_raw_details);
-    const merged = {
-      ...details,
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await prisma.appointment.update({
-      where: { id },
-      data: { appointment_raw_details: merged as Prisma.InputJsonValue },
-    });
-
-    return {
-      appointmentId: id,
-      details: merged,
-    };
-  })
+  )
 );
 
+// 3) CANCEL APPOINTMENT -> DELETE /agnet/clinic/appointment?userId=&appointmentId=
 server.registerTool(
   "cancel_appointment",
   {
     title: "Cancel appointment",
-    description: "Marks an appointment as cancelled.",
+    description:
+      "Cancels an appointment via eDentist backend API (no local DB).",
     inputSchema: cancelAppointmentSchema as any,
   },
-  safeTool("cancel_appointment", cancelAppointmentSchema, async ({ appointmentId, ...rest }) => {
-    const id = toNumber(appointmentId);
-    const existing = await prisma.appointment.findUnique({ where: { id } });
-    if (!existing) {
-      return respondError(new Error(`Appointment ${id} not found.`));
+  safeTool(
+    "cancel_appointment",
+    cancelAppointmentSchema,
+    async ({ appointmentId, userId, reason, cancelledBy }) => {
+      const id = toNumber(appointmentId);
+      const uid = toNumber(userId);
+
+      const data = await apiDelete("/agnet/clinic/appointment", {
+        appointmentId: id,
+        userId: uid,
+      });
+
+      // نرجّع الـ response من الـ API + سبب الإلغاء لو حابب تستخدمه في النص
+      return {
+        apiResponse: data,
+        cancellation: {
+          reason,
+          cancelledBy,
+        },
+      };
     }
-
-    const details = getAppointmentRaw(existing.appointment_raw_details);
-    const merged = {
-      ...details,
-      status: "cancelled",
-      cancelledAt: new Date().toISOString(),
-      cancellationReason: rest.reason,
-      cancelledBy: rest.cancelledBy,
-    };
-
-    await prisma.appointment.update({
-      where: { id },
-      data: { appointment_raw_details: merged as Prisma.InputJsonValue },
-    });
-
-    return {
-      appointmentId: id,
-      details: merged,
-    };
-  })
+  )
 );
 
+// 4) LIST CLINICS -> GET /agnet/clinic
 server.registerTool(
   "list_clinics",
   {
     title: "List clinics",
-    description: "Lists clinics along with summary counts.",
+    description:
+      "Lists clinics via eDentist backend API with optional country/city/address filters.",
     inputSchema: listClinicsSchema as any,
   },
-  safeTool("list_clinics", listClinicsSchema, async ({ limit }) => {
-    const clinics = await prisma.clinic.findMany({
-      take: limit ?? 50,
-      orderBy: { createdAt: "desc" },
-      include: {
-        _count: {
-          select: {
-            users: true,
-            vouchers: true,
-            agentAssignments: true,
-            voiceCalls: true,
-          },
-        },
-      },
+  safeTool("list_clinics", listClinicsSchema, async ({ country, city, address, limit }) => {
+    const clinics = await apiGet<any[]>("/agnet/clinic", {
+      country,
+      city,
+      address,
     });
-
+    if (limit) {
+      return clinics.slice(0, limit);
+    }
     return clinics;
   })
 );
 
+// 5) LIST DOCTORS -> GET /agnet/clinic/doctors?clinicId=1
 server.registerTool(
   "list_doctors",
   {
-    title: "List doctors",
-    description: "Returns clinic members with clinic assignments.",
+    title: "List doctors for a clinic",
+    description:
+      "Returns doctors for a clinic via eDentist backend API (requires clinicId).",
     inputSchema: listDoctorsSchema as any,
   },
-  safeTool("list_doctors", listDoctorsSchema, async ({ clinicId, includeClinic, limit }) => {
-    const where: Prisma.UserWhereInput = clinicId
-      ? { clinicId }
-      : { clinicId: { not: null } };
-
-    const doctors = await prisma.user.findMany({
-      where,
-      include: { clinic: true },
-      take: limit ?? 50,
+  safeTool("list_doctors", listDoctorsSchema, async ({ clinicId, limit }) => {
+    const doctors = await apiGet<any[]>("/agnet/clinic/doctors", {
+      clinicId,
     });
-
-    return doctors.map((doctor) => ({
-      id: doctor.id,
-      name: doctor.name,
-      phone: doctor.mobileNumber,
-      email: doctor.email,
-      clinic: includeClinic ? doctor.clinic : undefined,
-    }));
+    if (limit) {
+      return doctors.slice(0, limit);
+    }
+    return doctors;
   })
 );
 
+// 6) VALIDATE VOUCHER -> NOT CONNECTED TO API YET
 server.registerTool(
   "validate_voucher",
   {
     title: "Validate voucher",
-    description: "Checks whether a voucher code is active and not expired.",
+    description:
+      "Checks whether a voucher code is active (NOT IMPLEMENTED on API yet; no DB).",
     inputSchema: validateVoucherSchema as any,
   },
-  safeTool("validate_voucher", validateVoucherSchema, async ({ code }) => {
-    const voucher = await prisma.voucher.findUnique({ where: { code } });
-    if (!voucher) {
-      return { valid: false, reason: "NOT_FOUND" };
-    }
-
-    const now = new Date();
-    if (voucher.expirationDate < now) {
-      return { valid: false, reason: "EXPIRED", voucher };
-    }
-    if (!voucher.isActive) {
-      return { valid: false, reason: "INACTIVE", voucher };
-    }
-    if (voucher.seats <= 0) {
-      return { valid: false, reason: "NO_SEATS", voucher };
-    }
-
-    return { valid: true, voucher };
+  safeTool("validate_voucher", validateVoucherSchema, async () => {
+    throw new Error(
+      "validate_voucher is not connected to the external API. No local database is used."
+    );
   })
 );
 
+// 7) LOG VOICE CALL -> console only
 server.registerTool(
   "log_voice_call",
   {
     title: "Log voice call",
-    description: "Persists a voice call record.",
+    description:
+      "Logs voice call metadata (currently only logs to console; no DB / API).",
     inputSchema: logVoiceCallSchema as any,
   },
   safeTool("log_voice_call", logVoiceCallSchema, async (input) => {
-    const providerEnumValues = Object.values(VoiceAgentsProvider);
-    const provider = providerEnumValues.includes(
-      input.provider as VoiceAgentsProvider
-    )
-      ? (input.provider as VoiceAgentsProvider)
-      : VoiceAgentsProvider.ELEVEN_LABS;
-
-    const call = await prisma.voiceCall.create({
-      data: {
-        agentId: input.agentId,
-        conversationId: input.conversationId,
-        status: input.status,
-        provider,
-        clinicId: input.clinicId,
-        collectedData: {
-          ...(input.collectedData ?? {}),
-          metadata: input.metadata,
-        } as Prisma.InputJsonValue,
-      },
-    });
-
-    return call;
+    console.log(
+      "[edentist-mcp] VOICE CALL LOG:",
+      JSON.stringify(input, null, 2)
+    );
+    return {
+      logged: true,
+      loggedAt: new Date().toISOString(),
+      ...input,
+    };
   })
 );
 
+// 8) FIND USER BY PHONE -> NOT IMPLEMENTED
 server.registerTool(
   "find_user_by_phone",
   {
     title: "Find user by phone",
-    description: "Retrieves a patient using the mobileNumber field.",
+    description: "Find user by phone (real API)",
     inputSchema: findUserByPhoneSchema as any,
   },
   safeTool("find_user_by_phone", findUserByPhoneSchema, async ({ phone }) => {
-    const user = await prisma.user.findUnique({
-      where: { mobileNumber: phone },
-      include: {
-        clinic: true,
-        reports: { take: 5, orderBy: { created_at: "desc" } },
-      },
-    });
-
-    if (!user) {
-      return { found: false };
-    }
-
-    return { found: true, user };
+    return await apiGet("/user", { phone });
   })
 );
 
+
+// 9) FIND USER BY NAME -> NOT IMPLEMENTED
 server.registerTool(
   "find_user_by_name",
   {
     title: "Find user by name",
-    description: "Performs a case-insensitive match on the user name field.",
+    description:
+      "Searches users by name (NOT IMPLEMENTED on external API).",
     inputSchema: findUserByNameSchema as any,
   },
-  safeTool("find_user_by_name", findUserByNameSchema, async ({ name, limit }) => {
-    const users = await prisma.user.findMany({
-      where: {
-        name: {
-          contains: name,
-        },
-      },
-      take: limit ?? 25,
-      include: {
-        clinic: true,
-      },
-    });
-
-    return users;
+  safeTool("find_user_by_name", findUserByNameSchema, async () => {
+    throw new Error(
+      "find_user_by_name is not connected to the external API. No local database is used."
+    );
   })
 );
 
-const extractAppointments = (
-  appointments: {
-    id: number;
-    appointment_raw_details: Prisma.JsonValue;
-    createdAt: Date;
-    updatedAt: Date;
-  }[],
-  predicate: (details: AppointmentRaw) => boolean
-) =>
-  appointments
-    .map((appt) => normalizeAppointment(appt))
-    .filter((details) => predicate(details));
-
+// 10) LIST USER APPOINTMENTS -> GET /agnet/clinic/appointment/{userId}
 server.registerTool(
   "list_user_appointments",
   {
-    title: "List appointments for a patient",
-    description: "Lists appointments filtered by patient phone or name.",
+    title: "List appointments for a user",
+    description:
+      "Lists appointments for a user via eDentist backend API (userId required).",
     inputSchema: listUserAppointmentsSchema as any,
   },
-  safeTool("list_user_appointments", listUserAppointmentsSchema, async ({ patientPhone, patientName, limit }) => {
-    if (!patientPhone && !patientName) {
-      throw new Error("Provide patientPhone or patientName when listing appointments.");
+  safeTool(
+    "list_user_appointments",
+    listUserAppointmentsSchema,
+    async ({ userId, doctorId, startFrom, startTo, limit }) => {
+      const uid = toNumber(userId);
+
+      const path = `/agnet/clinic/appointment/${uid}`;
+      const appointments = await apiGet<any[]>(path, {
+        doctorId,
+        startFrom,
+        startTo,
+      });
+
+      if (limit) {
+        return appointments.slice(0, limit);
+      }
+      return appointments;
     }
-
-    const appointments = await prisma.appointment.findMany({
-      orderBy: { updatedAt: "desc" },
-      take: limit ?? 50,
-    });
-
-    const result = extractAppointments(appointments, (details) => {
-      const matchesPhone = patientPhone
-        ? typeof details.patientPhone === "string" &&
-          details.patientPhone.toLowerCase().includes(patientPhone.toLowerCase())
-        : true;
-      const matchesName = patientName
-        ? typeof details.patientName === "string" &&
-          details.patientName.toLowerCase().includes(patientName.toLowerCase())
-        : true;
-      return matchesPhone && matchesName;
-    });
-
-    return result;
-  })
+  )
 );
 
+// 11) SEARCH APPOINTMENTS -> NOT IMPLEMENTED
 server.registerTool(
   "search_appointments",
   {
     title: "Search appointments",
-    description: "Search appointments by doctor, clinic branch, patient, or status.",
+    description:
+      "Search appointments (NOT IMPLEMENTED on external API; use list_user_appointments instead).",
     inputSchema: searchAppointmentsSchema as any,
   },
-  safeTool("search_appointments", searchAppointmentsSchema, async (filters) => {
-    const appointments = await prisma.appointment.findMany({
-      orderBy: { updatedAt: "desc" },
-      take: filters.limit ?? 50,
-    });
-
-    const result = extractAppointments(appointments, (details) => {
-      const matchesDoctor = filters.doctorName
-        ? typeof details.doctorName === "string" &&
-          details.doctorName.toLowerCase().includes(filters.doctorName.toLowerCase())
-        : true;
-      const matchesClinic = filters.clinicBranch
-        ? typeof details.clinicBranch === "string" &&
-          details.clinicBranch.toLowerCase().includes(filters.clinicBranch.toLowerCase())
-        : true;
-      const matchesDate = filters.appointmentDate
-        ? typeof details.appointmentDate === "string" &&
-          details.appointmentDate.toLowerCase().includes(filters.appointmentDate.toLowerCase())
-        : true;
-      const matchesStatus = filters.status
-        ? typeof details.status === "string" &&
-          details.status.toLowerCase().includes(filters.status.toLowerCase())
-        : true;
-      const matchesPatientName = filters.patientName
-        ? typeof details.patientName === "string" &&
-          details.patientName.toLowerCase().includes(filters.patientName.toLowerCase())
-        : true;
-      const matchesPatientPhone = filters.patientPhone
-        ? typeof details.patientPhone === "string" &&
-          details.patientPhone.toLowerCase().includes(filters.patientPhone.toLowerCase())
-        : true;
-
-      return (
-        matchesDoctor &&
-        matchesClinic &&
-        matchesDate &&
-        matchesStatus &&
-        matchesPatientName &&
-        matchesPatientPhone
-      );
-    });
-
-    return result;
+  safeTool("search_appointments", searchAppointmentsSchema, async () => {
+    throw new Error(
+      "search_appointments is not implemented against the external API. Use list_user_appointments with filters instead."
+    );
   })
 );
+// FREE SLOTS TOOL
+const freeSlotsSchema = z.object({
+  clinicId: z.number().int().positive(),
+  doctorId: z.string().optional(),
+  start: z.string().min(1), // ISO datetime
+  end: z.string().min(1),   // ISO datetime
+});
+
+server.registerTool(
+  "free_slots",
+  {
+    title: "Get free appointment slots",
+    description:
+      "Returns available appointment slots from the backend API for a clinic (optionally filtered by doctor).",
+    inputSchema: freeSlotsSchema as any,
+  },
+  safeTool(
+    "free_slots",
+    freeSlotsSchema,
+    async ({ clinicId, doctorId, start, end }) => {
+      const slots = await apiGet("/agnet/clinic/solt", {
+        clinicId,
+        doctorId,
+        start,
+        end,
+      });
+
+      return {
+        clinicId,
+        doctorId: doctorId ?? null,
+        start,
+        end,
+        slots,
+      };
+    }
+  )
+);
+
+// =====================
+//  TRANSPORT & LIFECYCLE
+// =====================
 
 const transport = new StdioServerTransport();
 
 async function start() {
   await server.connect(transport);
-  console.log("edentist-mcp server ready (stdio transport).");
+  console.log("edentist-mcp server ready (stdio transport, API-only mode).");
 }
 
 start().catch((error) => {
@@ -565,11 +550,9 @@ start().catch((error) => {
 });
 
 const shutdown = async () => {
-  await prisma.$disconnect();
   transport.close();
   process.exit(0);
 };
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
-

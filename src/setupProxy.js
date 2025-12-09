@@ -18,6 +18,11 @@ const { recordAuditEvent } = require('../server/audit-logger.ts');
 const { getActiveAgentProfile } = require('../server/dbBookingIntegration.ts');
 const { callMcpTool } = require('../server/mcpClient.ts');
 
+// Ensure fetch is available in the proxy context
+const fetch =
+  global.fetch ||
+  ((...args) =>
+    import('node-fetch').then(({ default: f }) => f(...args)));
 
 function parseJson(req) {
   return new Promise((resolve, reject) => {
@@ -88,6 +93,47 @@ function audit(action, status, req, payload, target, metadata) {
     target,
     metadata,
   }).catch((error) => console.warn('[audit] Failed to record audit event', error));
+}
+
+function getOtpBaseUrl() {
+  const base =
+    process.env.AGENT_API_BASE_URL ||
+    process.env.OTP_API_BASE_URL ||
+    process.env.AUTH_STAGE_URL;
+  if (!base) {
+    throw new Error(
+      "AGENT_API_BASE_URL (or OTP_API_BASE_URL / AUTH_STAGE_URL) is not configured for OTP requests"
+    );
+  }
+  return base.replace(/\/$/, "");
+}
+
+async function callOtpApi(path, payload) {
+  const baseUrl = getOtpBaseUrl();
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+  let body = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = text;
+  }
+
+  if (!response.ok) {
+    const error = new Error(
+      (body && typeof body === "object" && body.message) || response.statusText
+    );
+    error.status = response.status;
+    error.body = body;
+    throw error;
+  }
+
+  return body;
 }
 
 module.exports = function setupAnalyticsProxy(app) {
@@ -164,6 +210,78 @@ module.exports = function setupAnalyticsProxy(app) {
       statusCode = res.statusCode || 500;
     } finally {
       systemMetrics.record('agent.config', Date.now() - started, statusCode ?? res.statusCode);
+    }
+  });
+  app.post("/api/auth/send-otp", async (req, res) => {
+    const started = Date.now();
+    let statusCode;
+    try {
+      const payload = await parseJson(req);
+      const phoneNumber = payload?.phoneNumber;
+      if (!phoneNumber || typeof phoneNumber !== "string") {
+        res.status(400).json({ status: "error", message: "phoneNumber is required" });
+        statusCode = res.statusCode || 400;
+        return;
+      }
+      const result = await callOtpApi("/agent/auth/send-otp", {
+        phoneNumber,
+      });
+      res.json(result);
+      statusCode = res.statusCode;
+    } catch (error) {
+      const status = error?.status ?? 500;
+      res.status(status).json({
+        status: "error",
+        message: error?.message || "Failed to send OTP",
+        details: error?.body ?? null,
+      });
+      statusCode = status;
+    } finally {
+      systemMetrics.record("auth.send_otp", Date.now() - started, statusCode ?? res.statusCode);
+    }
+  });
+
+  app.post("/api/auth/verify-otp", async (req, res) => {
+    const started = Date.now();
+    let statusCode;
+    try {
+      const payload = await parseJson(req);
+      const userId = payload?.userId;
+      const code = payload?.code;
+      if (!userId || Number.isNaN(Number(userId))) {
+        res.status(400).json({ status: "error", message: "userId is required to verify OTP" });
+        statusCode = res.statusCode || 400;
+        return;
+      }
+      if (!code || typeof code !== "string") {
+        res.status(400).json({ status: "error", message: "OTP code is required" });
+        statusCode = res.statusCode || 400;
+        return;
+      }
+
+      const result = await callOtpApi("/agent/auth/verify-otp", {
+        userId: Number(userId),
+        code: code.trim(),
+      });
+
+      const token = issueJWT({
+        sub: String(result?.user?.id ?? userId),
+        role: "patient",
+        scope: ["voice:client"],
+      });
+
+      res.json({ ...result, token });
+      statusCode = res.statusCode;
+    } catch (error) {
+      const status = error?.status ?? 500;
+      res.status(status).json({
+        status: "error",
+        message: error?.message || "Invalid verification code.",
+        details: error?.body ?? null,
+      });
+      statusCode = status;
+    } finally {
+      systemMetrics.record("auth.verify_otp", Date.now() - started, statusCode ?? res.statusCode);
     }
   });
   app.post('/api/mcp/tools/:toolName', async (req, res) => {
@@ -562,4 +680,3 @@ module.exports = function setupAnalyticsProxy(app) {
 
   
 };
-
