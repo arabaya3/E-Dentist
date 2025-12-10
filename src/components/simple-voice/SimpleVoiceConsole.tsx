@@ -7,7 +7,7 @@ import AudioPulse from "../audio-pulse/AudioPulse";
 const MIC_MIME_TYPE = "audio/pcm;rate=16000";
 
 export default function SimpleVoiceConsole() {
-  const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
+  const { client, connected, connect, disconnect, volume, recordUserAudio, uploadStatus } = useLiveAPIContext();
   const [muted, setMuted] = useState(false);
   const [micVolume, setMicVolume] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +35,9 @@ export default function SimpleVoiceConsole() {
       if (!connected || muted) {
         return;
       }
+
+      // ⭐ NEW: تسجيل صوت المستخدم
+      recordUserAudio(base64);
 
       client.sendRealtimeInput([
         {
@@ -73,7 +76,7 @@ export default function SimpleVoiceConsole() {
       audioRecorder.off("volume", handleVolume);
       audioRecorder.stop();
     };
-  }, [audioRecorder, client, connected, muted]);
+  }, [audioRecorder, client, connected, muted, recordUserAudio]);
 
   useEffect(() => {
     if (connected) {
@@ -160,6 +163,25 @@ export default function SimpleVoiceConsole() {
           {error}
         </div>
       ) : null}
+
+      {/* ⭐ NEW: إشعارات رفع التسجيل */}
+      {uploadStatus && (
+        <div
+          className={`voice-console__notification ${
+            uploadStatus.type === 'success'
+              ? 'voice-console__notification--success'
+              : uploadStatus.type === 'error'
+              ? 'voice-console__notification--error'
+              : 'voice-console__notification--info'
+          }`}
+          role="alert"
+        >
+          {uploadStatus.type === 'success' && '✅ '}
+          {uploadStatus.type === 'error' && '❌ '}
+          {uploadStatus.type === null && '⏳ '}
+          {uploadStatus.message}
+        </div>
+      )}
 
       <section className="voice-console__actions">
         <button

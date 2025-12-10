@@ -17,6 +17,9 @@ const { systemMetrics } = require('../server/systemMetrics.ts');
 const { recordAuditEvent } = require('../server/audit-logger.ts');
 const { getActiveAgentProfile } = require('../server/dbBookingIntegration.ts');
 const { callMcpTool } = require('../server/mcpClient.ts');
+const { Storage } = require('@google-cloud/storage');
+const path = require('path');
+const multer = require('multer');
 
 // Ensure fetch is available in the proxy context
 const fetch =
@@ -675,6 +678,135 @@ module.exports = function setupAnalyticsProxy(app) {
       );
     } finally {
       systemMetrics.record('pms.performance', Date.now() - started, statusCode ?? res.statusCode);
+    }
+  });
+
+  // ⭐ NEW: API endpoint لرفع تسجيلات المحادثة إلى Google Cloud Storage
+  const upload = multer({ storage: multer.memoryStorage() });
+  
+  app.post('/api/voice/upload-recording', upload.single('audio'), async (req, res) => {
+    const started = Date.now();
+    let statusCode = 500;
+    
+    try {
+      if (!req.file) {
+        res.status(400).json({ 
+          status: 'error', 
+          message: 'لم يتم توفير ملف صوتي',
+          details: 'يرجى التأكد من إرسال ملف صوتي صحيح'
+        });
+        statusCode = 400;
+        return;
+      }
+
+      // مسار ملف المفاتيح
+      const keyFilePath = path.resolve(__dirname, '../server/credentials/edentist-key.json.json');
+      
+      // تهيئة Google Cloud Storage
+      const storage = new Storage({
+        keyFilename: keyFilePath,
+        projectId: 'edentistnew',
+      });
+
+      const bucketName = process.env.GCS_BUCKET_NAME || 'edentist-voice-recordings';
+      const sessionStartTime = req.body.sessionStartTime || Date.now();
+      const fileName = `conversations/conversation-${sessionStartTime}.wav`;
+
+      // رفع الملف إلى Google Cloud Storage
+      const bucket = storage.bucket(bucketName);
+      const file = bucket.file(fileName);
+
+      const stream = file.createWriteStream({
+        metadata: {
+          contentType: 'audio/wav',
+          metadata: {
+            sessionStartTime: sessionStartTime.toString(),
+            uploadedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      stream.on('error', (err) => {
+        console.error('[voice-upload] Upload error:', err);
+        
+        let errorMessage = 'فشل رفع التسجيل إلى Google Cloud Storage';
+        let errorDetails = err.message;
+        
+        // تحسين رسائل الخطأ حسب نوع الخطأ
+        if (err.code === 'ENOENT' || err.message.includes('keyFilename')) {
+          errorMessage = 'ملف المفاتيح غير موجود';
+          errorDetails = 'تأكد من وجود ملف edentist-key.json.json في المسار الصحيح';
+        } else if (err.code === 'EACCES' || err.message.includes('permission')) {
+          errorMessage = 'خطأ في الصلاحيات';
+          errorDetails = 'تأكد من صلاحيات الوصول إلى Google Cloud Storage';
+        } else if (err.message.includes('bucket')) {
+          errorMessage = 'خطأ في اسم الـ Bucket';
+          errorDetails = 'تأكد من وجود الـ bucket أو قم بتعيين GCS_BUCKET_NAME في متغيرات البيئة';
+        }
+        
+        res.status(500).json({
+          status: 'error',
+          message: errorMessage,
+          details: errorDetails,
+        });
+        statusCode = 500;
+      });
+
+      stream.on('finish', async () => {
+        try {
+          // جعل الملف قابل للوصول العام (اختياري)
+          await file.makePublic();
+          
+          const publicUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
+          
+          res.status(200).json({
+            status: 'success',
+            message: 'Recording uploaded successfully',
+            url: publicUrl,
+            fileName: fileName,
+          });
+          statusCode = 200;
+          
+          systemMetrics.record('voice.upload', Date.now() - started, statusCode);
+        } catch (err) {
+          console.error('[voice-upload] Error making file public:', err);
+          res.status(200).json({
+            status: 'success',
+            message: 'Recording uploaded successfully (private)',
+            fileName: fileName,
+          });
+          statusCode = 200;
+          systemMetrics.record('voice.upload', Date.now() - started, statusCode);
+        }
+      });
+
+      stream.end(req.file.buffer);
+      
+    } catch (error) {
+      console.error('[voice-upload] Error:', error);
+      
+      let errorMessage = 'فشل معالجة الرفع';
+      let errorDetails = error?.message || 'خطأ غير معروف';
+      
+      // تحسين رسائل الخطأ
+      if (error?.message?.includes('keyFilename') || error?.message?.includes('ENOENT')) {
+        errorMessage = 'ملف المفاتيح غير موجود';
+        errorDetails = 'تأكد من وجود ملف edentist-key.json.json في: server/credentials/';
+      } else if (error?.message?.includes('bucket') || error?.code === 'ENOTFOUND') {
+        errorMessage = 'خطأ في الاتصال بـ Google Cloud Storage';
+        errorDetails = 'تأكد من إعدادات الاتصال واسم الـ bucket';
+      } else if (error?.message?.includes('permission') || error?.code === 'EACCES') {
+        errorMessage = 'خطأ في الصلاحيات';
+        errorDetails = 'تأكد من صلاحيات Service Account في Google Cloud';
+      }
+      
+      res.status(500).json({
+        status: 'error',
+        message: errorMessage,
+        details: errorDetails,
+      });
+      statusCode = 500;
+      systemMetrics.record('voice.upload', Date.now() - started, statusCode);
     }
   });
 
