@@ -566,7 +566,7 @@ export default function VoiceAgentBootstrap() {
          - Doctors (list, search)
          - Clinics (list, search)
          - Vouchers (validate)
-         - Users (find by phone, find by name)
+         - Users (find by name). For phone, use OTP flow only (send_otp / verify_otp); no direct phone lookup tool exists.
          - Voice call logs (log_voice_call)
        
       2. **YOU MUST NOT answer from your own knowledge.**
