@@ -1,5 +1,4 @@
 require("dotenv-flow").config();
-const { db } = require("./db.ts");
 
 // Enable TS Runtime
 if (!process.env.TS_NODE_REGISTERED) {
@@ -182,18 +181,6 @@ app.post("/api/auth/verify-otp", async (req, res) => {
   }
 });
 
-
-// =============================
-//  DB CHECK
-// =============================
-app.get("/api/db-check", async (req, res) => {
-  try {
-    const result = await db.$queryRaw`SELECT 1 + 1 AS sum`;
-    res.json({ status: "ok", result });
-  } catch (e) {
-    res.status(500).json({ status: "error", error: e.message });
-  }
-});
 
 // =============================
 //  WebSocket Server
