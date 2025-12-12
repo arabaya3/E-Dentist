@@ -6,7 +6,8 @@ const zod_1 = require("zod");
 // =====================
 //  API CONFIG & HELPERS
 // =====================
-const API_BASE = "https://edentist-be-stage-576483531725.europe-west1.run.app/api/v1";
+const DEFAULT_API_BASE = "https://edentist-be-stage-576483531725.europe-west1.run.app/api/v1";
+const API_BASE = (process.env.EDENTIST_API_BASE_URL?.trim() || DEFAULT_API_BASE).replace(/\/+$/, "");
 function buildUrl(path, query) {
     const url = new URL(path.replace(/^\//, ""), API_BASE + "/");
     if (query) {
@@ -168,9 +169,6 @@ const logVoiceCallSchema = zod_1.z.object({
     collectedData: zod_1.z.record(zod_1.z.string(), zod_1.z.any()).optional(),
     metadata: zod_1.z.record(zod_1.z.string(), zod_1.z.any()).optional(),
 });
-const findUserByPhoneSchema = zod_1.z.object({
-    phone: zod_1.z.string().min(3),
-});
 const findUserByNameSchema = zod_1.z.object({
     name: zod_1.z.string().min(1),
     limit: zod_1.z.number().int().positive().max(50).optional(),
@@ -299,15 +297,7 @@ server.registerTool("log_voice_call", {
         ...input,
     };
 }));
-// 8) FIND USER BY PHONE -> NOT IMPLEMENTED
-server.registerTool("find_user_by_phone", {
-    title: "Find user by phone",
-    description: "Find user by phone (real API)",
-    inputSchema: findUserByPhoneSchema,
-}, safeTool("find_user_by_phone", findUserByPhoneSchema, async ({ phone }) => {
-    return await apiGet("/user", { phone });
-}));
-// 9) FIND USER BY NAME -> NOT IMPLEMENTED
+// 8) FIND USER BY NAME -> NOT IMPLEMENTED
 server.registerTool("find_user_by_name", {
     title: "Find user by name",
     description: "Searches users by name (NOT IMPLEMENTED on external API).",
@@ -315,7 +305,7 @@ server.registerTool("find_user_by_name", {
 }, safeTool("find_user_by_name", findUserByNameSchema, async () => {
     throw new Error("find_user_by_name is not connected to the external API. No local database is used.");
 }));
-// 10) LIST USER APPOINTMENTS -> GET /agnet/clinic/appointment/{userId}
+// 9) LIST USER APPOINTMENTS -> GET /agnet/clinic/appointment/{userId}
 server.registerTool("list_user_appointments", {
     title: "List appointments for a user",
     description: "Lists appointments for a user via eDentist backend API (userId required).",
@@ -333,7 +323,7 @@ server.registerTool("list_user_appointments", {
     }
     return appointments;
 }));
-// 11) SEARCH APPOINTMENTS -> NOT IMPLEMENTED
+// 10) SEARCH APPOINTMENTS -> NOT IMPLEMENTED
 server.registerTool("search_appointments", {
     title: "Search appointments",
     description: "Search appointments (NOT IMPLEMENTED on external API; use list_user_appointments instead).",
@@ -341,7 +331,7 @@ server.registerTool("search_appointments", {
 }, safeTool("search_appointments", searchAppointmentsSchema, async () => {
     throw new Error("search_appointments is not implemented against the external API. Use list_user_appointments with filters instead.");
 }));
-// FREE SLOTS TOOL
+// FREE SLOTS TOOL (11)
 const freeSlotsSchema = zod_1.z.object({
     clinicId: zod_1.z.number().int().positive(),
     doctorId: zod_1.z.string().optional(),

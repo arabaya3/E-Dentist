@@ -6,8 +6,12 @@ import { z } from "zod";
 //  API CONFIG & HELPERS
 // =====================
 
-const API_BASE =
+const DEFAULT_API_BASE =
   "https://edentist-be-stage-576483531725.europe-west1.run.app/api/v1";
+
+const API_BASE = (
+  process.env.EDENTIST_API_BASE_URL?.trim() || DEFAULT_API_BASE
+).replace(/\/+$/, "");
 
 type QueryParams = Record<string, string | number | boolean | undefined>;
 
@@ -220,10 +224,6 @@ const logVoiceCallSchema = z.object({
   metadata: z.record(z.string(), z.any()).optional(),
 });
 
-const findUserByPhoneSchema = z.object({
-  phone: z.string().min(3),
-});
-
 const findUserByNameSchema = z.object({
   name: z.string().min(1),
   limit: z.number().int().positive().max(50).optional(),
@@ -420,21 +420,7 @@ server.registerTool(
   })
 );
 
-// 8) FIND USER BY PHONE -> NOT IMPLEMENTED
-server.registerTool(
-  "find_user_by_phone",
-  {
-    title: "Find user by phone",
-    description: "Find user by phone (real API)",
-    inputSchema: findUserByPhoneSchema as any,
-  },
-  safeTool("find_user_by_phone", findUserByPhoneSchema, async ({ phone }) => {
-    return await apiGet("/user", { phone });
-  })
-);
-
-
-// 9) FIND USER BY NAME -> NOT IMPLEMENTED
+// 8) FIND USER BY NAME -> NOT IMPLEMENTED
 server.registerTool(
   "find_user_by_name",
   {
@@ -450,7 +436,7 @@ server.registerTool(
   })
 );
 
-// 10) LIST USER APPOINTMENTS -> GET /agnet/clinic/appointment/{userId}
+// 9) LIST USER APPOINTMENTS -> GET /agnet/clinic/appointment/{userId}
 server.registerTool(
   "list_user_appointments",
   {
@@ -480,7 +466,7 @@ server.registerTool(
   )
 );
 
-// 11) SEARCH APPOINTMENTS -> NOT IMPLEMENTED
+// 10) SEARCH APPOINTMENTS -> NOT IMPLEMENTED
 server.registerTool(
   "search_appointments",
   {
@@ -495,7 +481,7 @@ server.registerTool(
     );
   })
 );
-// FREE SLOTS TOOL
+// FREE SLOTS TOOL (11)
 const freeSlotsSchema = z.object({
   clinicId: z.number().int().positive(),
   doctorId: z.string().optional(),

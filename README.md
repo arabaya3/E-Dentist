@@ -57,8 +57,8 @@ All database operations are exposed as MCP tools:
 
 - **Appointment Management**: `create_appointment`, `update_appointment`, `cancel_appointment`
 - **Clinic & Doctor Lookups**: `list_clinics`, `list_doctors`
-- **User Management**: `find_user_by_phone`, `find_user_by_name`, `list_user_appointments`
-- **Search & Validation**: `search_appointments`, `validate_voucher`
+- **User Management**: `find_user_by_name`, `list_user_appointments`
+- **Search & Validation**: `search_appointments` (not implemented), `validate_voucher` (not implemented)
 - **Analytics**: `log_voice_call`
 
 ### 🎛 Simple Voice Console
@@ -97,212 +97,64 @@ A minimal UI for controlling voice sessions:
 - MySQL 8.0+
 - Gemini API key from Google AI Studio
 
-### Installation
+### Installation & Run (concise)
 
-1. **Clone the repository**
-
-```bash
-git clone https://github.com/arabaya3/E-Dentist.git
-cd E-Dentist_realtime
-```
-
-2. **Install dependencies**
-
+1) Install deps (root):
 ```bash
 npm install
 ```
 
-3. **Set up environment variables**
-
-Create a `.env` file in the project root:
-
+2) `.env` (root):
 ```ini
-# Gemini API Configuration
-GEMINI_API_KEY=your_gemini_api_key_here
-REACT_APP_GEMINI_API_KEY=your_gemini_api_key_here
-
-# Database Configuration
+EDENTIST_API_BASE_URL=https://edentist-be-stage-576483531725.europe-west1.run.app/api/v1
+AGENT_API_BASE_URL=https://your-auth-api-url.com
+GEMINI_API_KEY=<key>
+REACT_APP_GEMINI_API_KEY=<key>
 DATABASE_URL=mysql://user:password@localhost:3306/edentist
-
-# Authentication & Security
+PORT=5000
+NODE_ENV=development
 EDENTIST_AUTH_CLIENT_ID=your_client_id
 EDENTIST_AUTH_CLIENT_SECRET=your_client_secret
 EDENTIST_JWT_SECRET=your_jwt_secret_here
 EDENTIST_AES_PASSPHRASE=your_aes_passphrase
 EDENTIST_AES_KEY=your_aes_key
-
-# Analytics (Optional - disabled in development)
-REACT_APP_ENABLE_ANALYTICS=false
-
-# Server Configuration
-PORT=5000
-NODE_ENV=development
 ```
 
-4. **Set up the database**
-
+3) Prisma & MCP build (from `mcp-server/`):
 ```bash
-# Run migrations
-npx prisma migrate deploy
-
-# Seed the database with realistic Jordanian clinic data
-npx prisma db seed
+npm install
+npx prisma generate
+npm run build
 ```
 
-5. **Build the MCP server**
-
+4) Run MCP (from `mcp-server/`):
 ```bash
-npm run build:mcp
+node dist/index.js
 ```
 
-6. **Start the development servers**
-
+5) Run backend (from `server/`):
 ```bash
-# Terminal 1: Start the backend server
-npm run start:backend
-
-# Terminal 2: Start the React frontend
 npm start
 ```
 
-7. **Open the application**
+6) Run frontend (root):
+```bash
+npm start
+```
 
-Navigate to `http://localhost:3000` in your browser.
+ثم افتح `http://localhost:3000`.
 
 ---
 
-## 📋 MCP Tools Reference
-
-All database operations are exposed as MCP tools. The Gemini Live agent automatically calls these tools when needed.
-
-### Appointment Tools
-
-#### `create_appointment`
-
-Creates a new appointment in the database.
-
-**Parameters:**
-- `doctorName` (string, required): Name of the doctor
-- `clinicBranch` (string, required): Clinic location or branch
-- `patientName` (string, required): Patient full name
-- `patientPhone` (string, required): Patient contact number
-- `serviceType` (string, required): Requested service (e.g., "Cleaning", "Whitening", "Composite Filling")
-- `appointmentDate` (string, required): Date of the appointment (YYYY-MM-DD)
-- `appointmentTime` (string, required): Time of the appointment (HH:MM)
-- `status` (string, optional): Initial status (e.g., "confirmed", "pending")
-- `notes` (string, optional): Additional notes
-- `otp` (string, optional): Verification code if required
-
-**Example:**
-```json
-{
-  "doctorName": "Dr. Ahmad Al-Rousan",
-  "clinicBranch": "Amman Dental Care – Abdoun",
-  "patientName": "محمد أحمد",
-  "patientPhone": "0791234567",
-  "serviceType": "Cleaning",
-  "appointmentDate": "2024-12-15",
-  "appointmentTime": "10:00",
-  "status": "confirmed"
-}
-```
-
-#### `update_appointment`
-
-Updates an existing appointment.
-
-**Parameters:**
-- `id` (number, required): Appointment ID
-- `doctorName` (string, optional): Updated doctor name
-- `clinicBranch` (string, optional): Updated clinic branch
-- `patientName` (string, optional): Updated patient name
-- `patientPhone` (string, optional): Updated patient phone
-- `serviceType` (string, optional): Updated service type
-- `appointmentDate` (string, optional): Updated date
-- `appointmentTime` (string, optional): Updated time
-- `status` (string, optional): Updated status
-- `notes` (string, optional): Updated notes
-
-#### `cancel_appointment`
-
-Cancels an existing appointment.
-
-**Parameters:**
-- `id` (number, required): Appointment ID
-- `patientName` (string, optional): Patient name for verification
-- `patientPhone` (string, optional): Patient phone for verification
-- `otp` (string, optional): OTP for verification
-
-### Lookup Tools
-
-#### `list_clinics`
-
-Returns a list of all clinics in the database.
-
-**Parameters:** None
-
-#### `list_doctors`
-
-Returns a list of all doctors, optionally filtered by clinic.
-
-**Parameters:**
-- `clinicName` (string, optional): Filter by clinic name
-- `includeClinic` (boolean, optional): Include clinic details in response
-
-#### `find_user_by_phone`
-
-Finds a user by phone number.
-
-**Parameters:**
-- `phone` (string, required): Phone number to search for
-
-#### `find_user_by_name`
-
-Finds users by name (supports partial matches).
-
-**Parameters:**
-- `name` (string, required): Name to search for
-
-#### `list_user_appointments`
-
-Lists all appointments for a specific user.
-
-**Parameters:**
-- `phone` (string, optional): User phone number
-- `name` (string, optional): User name
-- `status` (string, optional): Filter by appointment status
-
-#### `search_appointments`
-
-Searches appointments with various filters.
-
-**Parameters:**
-- `doctorName` (string, optional): Filter by doctor name
-- `clinicBranch` (string, optional): Filter by clinic branch
-- `patientPhone` (string, optional): Filter by patient phone
-- `serviceType` (string, optional): Filter by service type
-- `status` (string, optional): Filter by status
-- `dateFrom` (string, optional): Start date (YYYY-MM-DD)
-- `dateTo` (string, optional): End date (YYYY-MM-DD)
-
-### Utility Tools
-
-#### `validate_voucher`
-
-Validates a voucher code.
-
-**Parameters:**
-- `code` (string, required): Voucher code to validate
-
-#### `log_voice_call`
-
-Logs a voice call interaction for analytics.
-
-**Parameters:**
-- `intent` (string, required): Detected intent
-- `confidence` (number, required): Confidence score (0-1)
-- `duration` (number, optional): Call duration in seconds
-- `collectedData` (object, optional): Additional data collected during the call
+## 📋 MCP Tools (current)
+- `create_appointment` — يتطلب userId حقيقي ووقت متاح من `free_slots` (وإلا 400/500).
+- `cancel_appointment`
+- `list_clinics`
+- `list_doctors`
+- `free_slots`
+- `list_user_appointments`
+- `log_voice_call` (تسجيل فقط)
+- غير منفذة (ترمي أخطاء مقصودة): `update_appointment`, `validate_voucher`, `find_user_by_name`, `search_appointments`
 
 ---
 
@@ -418,29 +270,15 @@ The seed file (`server/prisma/seed.ts`) generates realistic Jordanian dental cli
 4. The assistant responds instantly using Gemini Live
 
 ### Book an Appointment
-
-**User (Arabic):** "أريد حجز موعد للتنظيف مع د. أحمد الروسان يوم السبت الساعة 10 صباحاً"
-
-**Agent:** The agent will:
-1. Call `list_doctors` to verify doctor availability
-2. Call `list_clinics` to find the clinic
-3. Call `create_appointment` with the details
-4. Confirm the appointment in Arabic
-
-### Search Appointments
-
-**User:** "Show me all appointments for next week"
-
-**Agent:** Calls `search_appointments` with date filters and presents the results.
+1) `list_clinics` → `list_doctors`  
+2) تحقق من `free_slots` لاختيار وقت متاح فعلياً  
+3) نفّذ `create_appointment` فقط بعد اكتمال (clinicId, doctorId, start, end, userId, patientName/Phone)  
+4) إذا عاد خطأ 400/500: أعد الرسالة وتوقف؛ لا تفترض بيانات  
 
 ### Cancel Appointment
-
-**User:** "I want to cancel my appointment"
-
-**Agent:** 
-1. Calls `list_user_appointments` to find user's appointments
-2. Calls `cancel_appointment` with verification
-3. Confirms cancellation
+1) `list_user_appointments` لإيجاد الحجز  
+2) `cancel_appointment` بالـ appointmentId و userId  
+3) أعد التأكيد للمستخدم  
 
 ---
 

@@ -728,7 +728,6 @@ export default function VoiceAgentBootstrap() {
       ## Tool Usage Policy:
       - Use create_appointment, update_appointment, cancel_appointment to reflect real booking changes.
       - Use list_clinics / list_doctors for availability.
-      - Use find_user_by_phone ONLY AFTER OTP verification.
       - Use list_user_appointments or search_appointments to find user bookings.
       - ⚠️ CRITICAL: log_voice_call is ONLY for logging session metadata at the END of a call
       - ⚠️ NEVER use log_voice_call instead of create_appointment
@@ -820,19 +819,6 @@ export default function VoiceAgentBootstrap() {
           });
           continue;
         }
-        if (call.name === "find_user_by_phone") {
-          if (!getPendingOtpUserId()) {
-            console.warn("[voice-agent] BLOCKED find_user_by_phone before OTP");
-            // force send_otp instead
-            const phone = call.args["phone"] || call.args["phoneNumber"];
-            return await handleToolCall({
-              name: "send_otp",
-              args: { phoneNumber: phone }
-            } as any);
-          }
-        }
-        
-
         // Handle OTP tools locally (no MCP hop)
         if (AUTH_TOOL_NAMES.has(call.name)) {
           try {
