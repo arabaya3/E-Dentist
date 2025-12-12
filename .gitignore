@@ -1,0 +1,23 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tsbuildinfo
+
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Credentials and secrets
+server/credentials/
+*.json.json
+**/credentials/**
+**/*-key.json
+**/*-key.json.json
+
